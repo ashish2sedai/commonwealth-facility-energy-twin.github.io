@@ -215,6 +215,8 @@ const defaultModelProfile: FacilityModelProfile = { kind:"slab", roof:"flat", as
 const LOAD_PROFILE_MEAN = loadProfile.reduce((sum, value) => sum + value, 0) / loadProfile.length;
 const PLANNING_ELECTRICITY_RATE = 0.11;
 const PLANNING_GRID_LB_CO2_PER_KWH = 0.7;
+const PLANNING_REC_PRICE_PER_MWH = 40;
+const PLANNING_HORIZON_YEARS = 25;
 
 function modelProfileFor(facility: Facility) {
   return modelProfiles[facility.id] ?? defaultModelProfile;
@@ -225,7 +227,7 @@ function annualElectricityKwh(facility: Facility) {
   return facility.peakLoad * LOAD_PROFILE_MEAN * diversity * 8760;
 }
 
-function impactAtCoverage(facility: Facility, coverage: number, electricityRate = PLANNING_ELECTRICITY_RATE, emissionsFactor = PLANNING_GRID_LB_CO2_PER_KWH) {
+function impactAtCoverage(facility: Facility, coverage: number, electricityRate = PLANNING_ELECTRICITY_RATE, emissionsFactor = PLANNING_GRID_LB_CO2_PER_KWH, recPrice = PLANNING_REC_PRICE_PER_MWH) {
   let annualPvKwh = 0;
   let annualOffsetKwh = 0;
   for (let day = 1; day <= 365; day += 1) {
@@ -235,6 +237,7 @@ function impactAtCoverage(facility: Facility, coverage: number, electricityRate 
       annualOffsetKwh += Math.min(point.load, point.pv);
     }
   }
+  const annualRecs = annualPvKwh / 1000;
   return {
     activePvCapacity: facility.pvCapacity * coverage / 100,
     grossRoofArea: facility.roofArea,
@@ -244,6 +247,8 @@ function impactAtCoverage(facility: Facility, coverage: number, electricityRate 
     annualOffsetKwh,
     avoidedCost: annualOffsetKwh * electricityRate,
     avoidedTons: annualOffsetKwh * emissionsFactor / 2000,
+    annualRecs,
+    annualRecRevenue: annualRecs * recPrice,
   };
 }
 
@@ -664,11 +669,11 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
               // short Bank Street bar closes the point of the plan. The upper
               // stories retain the same footprint instead of stepping inward.
               const baseScale = floorIndex < 2 ? 1.018 : floorIndex === facility.floors - 1 ? 0.992 : 1;
-              const wingAngle = THREE.MathUtils.degToRad(10.5);
+              const wingAngle = THREE.MathUtils.degToRad(13);
               return [
-                [width * 0.58 * baseScale, depth * 0.28 * baseScale, 0, -depth * 0.38, 0],
-                [width * 0.245 * baseScale, depth * 0.86 * baseScale, -width * 0.265, depth * 0.035, -wingAngle],
-                [width * 0.245 * baseScale, depth * 0.86 * baseScale, width * 0.265, depth * 0.035, wingAngle],
+                [width * 0.54 * baseScale, depth * 0.27 * baseScale, 0, -depth * 0.4, 0],
+                [width * 0.25 * baseScale, depth * 0.9 * baseScale, -width * 0.265, depth * 0.035, -wingAngle],
+                [width * 0.25 * baseScale, depth * 0.9 * baseScale, width * 0.265, depth * 0.035, wingAngle],
               ];
             }
             return [
@@ -699,7 +704,7 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
           roughness: profile.kind === "tower" || profile.kind === "podium-tower" ? 0.36 : 0.56, metalness: 0.08, clearcoat: 0.18 });
         floorMaterials.push(material);
         floorBaseColors.push(material.color.clone());
-        const slabMaterial = new THREE.MeshStandardMaterial({ color: 0xb8cad3, metalness: 0.4, roughness: 0.42 });
+        const slabMaterial = new THREE.MeshStandardMaterial({ color: isWashington ? 0xc7ad80 : 0xb8cad3, metalness: isWashington ? 0.08 : 0.4, roughness: isWashington ? 0.7 : 0.42 });
         const windowMaterial = new THREE.MeshStandardMaterial({ color: profile.glass, emissive: 0x0d3d46, emissiveIntensity: 0.2, metalness: 0.24, roughness: 0.2 });
         windowMaterials.push(windowMaterial);
         massParts(index).forEach(([partWidth, partDepth, partX, partZ, partRotation = 0]) => {
@@ -716,7 +721,10 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
           const partRoundedBox = (dimensions: [number, number, number], position: [number, number, number], boxMaterial: InstanceType<typeof THREE.Material>, radius: number) => addRoundedBox(dimensions, position, boxMaterial, radius, partParent);
           if (isWashington) {
             partRoundedBox([partWidth, floorPitch * 0.78, partDepth], [localX, floorY, localZ], material, 0.15);
-            partRoundedBox([partWidth + 0.1, 0.055, partDepth + 0.1], [localX, 0.12 + index * floorPitch, localZ], slabMaterial, 0.1);
+            // The buff-brick shaft reads as a continuous wall in exterior
+            // photographs; these shallow sill courses avoid a false balcony
+            // band at every floor.
+            partRoundedBox([partWidth + 0.035, 0.026, partDepth + 0.035], [localX, 0.12 + index * floorPitch, localZ], slabMaterial, 0.05);
             if (index === 1 || index === facility.floors - 1) {
               partRoundedBox([partWidth + 0.16, 0.075, partDepth + 0.16], [localX, floorY + floorPitch * 0.43, localZ], slabMaterial, 0.12);
             }
@@ -1065,13 +1073,13 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
           return { x: panelX, z: panelZ, y: roofSurfaceY, width: panelWidth, depth: panelDepth, rotation: fieldRotation };
         });
       });
-      const longestField = Math.max(...fieldLayouts.map((layout) => layout.length));
-      for (let slot = 0; slot < longestField; slot += 1) {
-        fieldLayouts.forEach((layout) => {
-          const panel = layout[slot];
-          if (panel) addPvModule(panel.x, panel.z, panel.y, panel.width, panel.depth, pitchAngle, !pitched, panel.rotation);
-        });
-      }
+      // Sequence modules as a buildable, contiguous array: complete the first
+      // connected roof zone from the building joint outward, then grow into
+      // the next zone. Lower scenarios no longer scatter modules across every
+      // roof field.
+      fieldLayouts.forEach((layout) => layout.forEach((panel) => {
+        addPvModule(panel.x, panel.z, panel.y, panel.width, panel.depth, pitchAngle, !pitched, panel.rotation);
+      }));
     }
 
     // A restrained setback outline appears only in the rooftop view. It is a
@@ -1262,10 +1270,20 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
         <div className="model-kpi-emissions"><span>CO₂e avoided</span><strong>{compactNumber(impact.avoidedTons)} <small>t/yr</small></strong></div>
         <div className="model-kpi-savings"><span>Cost avoided</span><strong>{compactCurrency(impact.avoidedCost)} <small>/yr</small></strong></div>
         <div><span>PV yield</span><strong>{compactNumber(pvYield)} <small>kWh/kW</small></strong></div>
+        <div className="model-kpi-recs"><span>Annual RECs</span><strong>{compactNumber(impact.annualRecs)} <small>RECs</small></strong></div>
+        <div className="model-kpi-savings"><span>REC revenue</span><strong>{compactCurrency(impact.annualRecRevenue)} <small>/yr</small></strong></div>
+        <div><span>Gross value</span><strong>{compactCurrency(impact.avoidedCost + impact.annualRecRevenue)} <small>/yr</small></strong></div>
+      </div>
+      <div className="model-horizon-grid" aria-label="25-year facility impact">
+        <div><span>25-year total value</span><strong>{compactCurrency((impact.avoidedCost + impact.annualRecRevenue) * PLANNING_HORIZON_YEARS)}</strong></div>
+        <div><span>Electricity savings</span><strong>{compactCurrency(impact.avoidedCost * PLANNING_HORIZON_YEARS)}</strong></div>
+        <div><span>REC revenue</span><strong>{compactCurrency(impact.annualRecRevenue * PLANNING_HORIZON_YEARS)}</strong></div>
+        <div><span>CO₂e avoided</span><strong>{compactNumber(impact.avoidedTons * PLANNING_HORIZON_YEARS)} t</strong></div>
+        <div><span>RECs generated</span><strong>{compactNumber(impact.annualRecs * PLANNING_HORIZON_YEARS)}</strong></div>
       </div>
       <div className="model-data-footer">
         <div><span>Rooftop scenario</span><div className="model-coverage-track"><i style={{ width:`${coverage}%` }} /></div><strong>{coverage}%</strong></div>
-        <p>{formatNumber(Math.round(impact.selectedRoofArea))} sq. ft. developed · {facility.id === "DGS-702" ? "three connected V-plan roof zones" : "sloped planning array"}</p>
+        <p>{formatNumber(Math.round(impact.selectedRoofArea))} sq. ft. developed · {facility.id === "DGS-702" ? "compact staged V-plan array" : "contiguous staged array"}</p>
       </div>
     </section>
   </div>;
@@ -1397,6 +1415,7 @@ export default function Home() {
   const [mapMode, setMapMode] = useState<MapMode>("capitol");
   const [electricityRate, setElectricityRate] = useState(PLANNING_ELECTRICITY_RATE);
   const [emissionsFactor, setEmissionsFactor] = useState(PLANNING_GRID_LB_CO2_PER_KWH);
+  const [recPrice, setRecPrice] = useState(PLANNING_REC_PRICE_PER_MWH);
 
   const visible = useMemo(() => facilities.filter((facility) => {
     const agencyMatch = agencyFilter === "ALL" || facility.agency.code === agencyFilter;
@@ -1416,8 +1435,8 @@ export default function Home() {
 
   const impactRows = useMemo(() => visible.map((facility) => ({
     facility,
-    impact: impactAtCoverage(facility, coverageLevel, electricityRate, emissionsFactor),
-  })), [visible, coverageLevel, electricityRate, emissionsFactor]);
+    impact: impactAtCoverage(facility, coverageLevel, electricityRate, emissionsFactor, recPrice),
+  })), [visible, coverageLevel, electricityRate, emissionsFactor, recPrice]);
 
   const totals = useMemo(() => impactRows.reduce((sum, row) => {
     const { facility, impact } = row;
@@ -1429,13 +1448,15 @@ export default function Home() {
     sum.annualOffsetKwh += impact.annualOffsetKwh;
     sum.avoidedCost += impact.avoidedCost;
     sum.avoidedTons += impact.avoidedTons;
+    sum.annualRecs += impact.annualRecs;
+    sum.annualRecRevenue += impact.annualRecRevenue;
     return sum;
-  }, { load: 0, pv: 0, grid: 0, pvCapacity: 0, annualOffsetKwh: 0, avoidedCost: 0, avoidedTons: 0 }), [impactRows, hour, dayOfYear, coverageLevel]);
+  }, { load: 0, pv: 0, grid: 0, pvCapacity: 0, annualOffsetKwh: 0, avoidedCost: 0, avoidedTons: 0, annualRecs: 0, annualRecRevenue: 0 }), [impactRows, hour, dayOfYear, coverageLevel]);
 
   const activeSelected = visible.find((facility) => facility.id === selected.id) ?? visible[0] ?? selected;
   const selectedEnergy = energyAt(activeSelected, hour, coverageLevel, dayOfYear);
   const selectedCoverage = selectedEnergy.load ? Math.min(100, Math.round(selectedEnergy.pv / selectedEnergy.load * 100)) : 0;
-  const selectedImpact = impactRows.find((row) => row.facility.id === activeSelected.id)?.impact ?? impactAtCoverage(activeSelected, coverageLevel, electricityRate, emissionsFactor);
+  const selectedImpact = impactRows.find((row) => row.facility.id === activeSelected.id)?.impact ?? impactAtCoverage(activeSelected, coverageLevel, electricityRate, emissionsFactor, recPrice);
   const selectedAnnualLoadKwh = annualElectricityKwh(activeSelected);
   const selectedDemandOffset = selectedAnnualLoadKwh ? selectedImpact.annualOffsetKwh / selectedAnnualLoadKwh * 100 : 0;
   const selectedSelfConsumption = selectedImpact.annualPvKwh ? selectedImpact.annualOffsetKwh / selectedImpact.annualPvKwh * 100 : 0;
@@ -1464,8 +1485,8 @@ export default function Home() {
   const peakPvMonth = monthlyProfile.reduce((best, point) => point.pv > best.pv ? point : best, monthlyProfile[0]);
   const coverageScenarios = useMemo(() => [25,50,75,100].map((level) => ({
     level,
-    impact: impactAtCoverage(activeSelected, level, electricityRate, emissionsFactor),
-  })), [activeSelected, electricityRate, emissionsFactor]);
+    impact: impactAtCoverage(activeSelected, level, electricityRate, emissionsFactor, recPrice),
+  })), [activeSelected, electricityRate, emissionsFactor, recPrice]);
   const scenarioMaxPv = Math.max(...coverageScenarios.map((scenario) => scenario.impact.annualPvKwh), 1);
   const scenarioCurvePoints = coverageScenarios.map((scenario, index) => `${24 + index * 100},${104 - scenario.impact.annualPvKwh / scenarioMaxPv * 76}`).join(" ");
   const selectedOfficialImage = officialFacilityImages[activeSelected.id];
@@ -1491,7 +1512,7 @@ export default function Home() {
       <article className="metric-card"><PortfolioMetricIcon kind="facilities" /><span className="metric-label">Real facility sites shown</span><strong>{visible.length}<small> / {facilities.length}</small></strong><em>{agencyFilter === "ALL" ? "Publicly listed DGS portfolio" : agencyFilter}</em><i className="metric-accent" /></article>
       <article className="metric-card load-card"><PortfolioMetricIcon kind="demand" /><span className="metric-label">Simulated electric demand</span><strong>{(totals.load / 1000).toFixed(1)}<small> MW</small></strong><em>{formatDay(dayOfYear)} · {formatHour(hour)}</em><i className="metric-accent" /></article>
       <article className="metric-card emissions-card"><PortfolioMetricIcon kind="emissions" /><span className="metric-label">Annual avoided emissions</span><strong>{compactNumber(totals.avoidedTons)}<small> tons CO₂e</small></strong><em>{coverageLevel}% of technically usable roof</em><i className="metric-accent" /></article>
-      <article className="metric-card savings-card"><PortfolioMetricIcon kind="savings" /><span className="metric-label">Annual avoided electricity cost</span><strong>{compactCurrency(totals.avoidedCost)}</strong><em>Gross annual value before project costs</em><i className="metric-accent" /></article>
+      <article className="metric-card savings-card"><PortfolioMetricIcon kind="savings" /><span className="metric-label">Annual avoided electricity cost</span><strong>{compactCurrency(totals.avoidedCost)}</strong><em>Plus {compactCurrency(totals.annualRecRevenue)}/yr REC value</em><i className="metric-accent" /></article>
     </section>
 
     <section className="control-bar" aria-label="Portfolio controls">
@@ -1514,9 +1535,10 @@ export default function Home() {
     </section>
 
     <section className="assumption-panel" aria-label="Advanced scenario assumptions">
-      <div><p className="eyebrow">Advanced assumptions</p><strong>Adjust avoided-impact values</strong><span>All results update instantly across the portfolio.</span></div>
+      <div><p className="eyebrow">Advanced assumptions</p><strong>Adjust avoided-impact values</strong><span>Annual and 25-year results update instantly.</span></div>
       <label><span>Electricity value <strong>${electricityRate.toFixed(2)}/kWh</strong></span><input type="range" min="0.05" max="0.30" step="0.01" value={electricityRate} onChange={(event) => setElectricityRate(Number(event.target.value))} /></label>
       <label><span>Grid emissions <strong>{emissionsFactor.toFixed(2)} lb CO₂e/kWh</strong></span><input type="range" min="0.10" max="1.50" step="0.05" value={emissionsFactor} onChange={(event) => setEmissionsFactor(Number(event.target.value))} /></label>
+      <label><span>REC market value <strong>${recPrice.toFixed(0)}/MWh</strong></span><input type="range" min="0" max="100" step="1" value={recPrice} onChange={(event) => setRecPrice(Number(event.target.value))} /></label>
     </section>
 
     <section className="portfolio-workspace">
@@ -1545,7 +1567,7 @@ export default function Home() {
               <polygon points={`24,108 ${scenarioCurvePoints} 324,108`} fill="url(#scenario-area)" />
               <polyline points={scenarioCurvePoints} className="scenario-output-line" />
               {coverageScenarios.map((scenario, index) => <g key={scenario.level}>
-                <circle cx={24 + index * 100} cy={104 - scenario.impact.annualPvKwh / scenarioMaxPv * 76} r={scenario.level === coverageLevel ? 6 : 4} className={scenario.level === coverageLevel ? "scenario-point is-active" : "scenario-point"} aria-label={`${scenario.level}% coverage: ${Math.round(scenario.impact.annualPvKwh / 1000)} MWh and ${compactCurrency(scenario.impact.avoidedCost)} avoided cost`} />
+                <circle cx={24 + index * 100} cy={104 - scenario.impact.annualPvKwh / scenarioMaxPv * 76} r={scenario.level === coverageLevel ? 6 : 4} className={scenario.level === coverageLevel ? "scenario-point is-active" : "scenario-point"} aria-label={`${scenario.level}% coverage: ${Math.round(scenario.impact.annualPvKwh / 1000)} MWh, ${compactCurrency(scenario.impact.avoidedCost)} avoided cost and ${compactCurrency(scenario.impact.annualRecRevenue)} REC revenue`} />
                 <text x={24 + index * 100} y="120" className="scenario-axis-label">{scenario.level}%</text>
               </g>)}
             </svg>
@@ -1603,13 +1625,17 @@ export default function Home() {
                 <span><small>Annual output</small><b>{compactNumber(scenario.impact.annualPvKwh / 1000)} MWh</b></span>
                 <span><small>Avoided cost</small><b>{compactCurrency(scenario.impact.avoidedCost)}/yr</b></span>
                 <span><small>Avoided CO₂e</small><b>{compactNumber(scenario.impact.avoidedTons)} t/yr</b></span>
+                <span><small>Annual RECs</small><b>{compactNumber(scenario.impact.annualRecs)}</b></span>
+                <span><small>REC revenue</small><b>{compactCurrency(scenario.impact.annualRecRevenue)}/yr</b></span>
               </span>
             </button>)}
           </div>
           <div className="planning-horizon" aria-label="Long-term planning outlook">
-            <div><span>25-year gross avoided value</span><strong>{compactCurrency(selectedImpact.avoidedCost * 25)}</strong><small>Flat electricity value; project costs excluded</small></div>
-            <div><span>25-year avoided emissions</span><strong>{compactNumber(selectedImpact.avoidedTons * 25)} tons</strong><small>Constant planning emissions factor</small></div>
-            <div><span>Annual demand offset</span><strong>{selectedDemandOffset.toFixed(1)}%</strong><small>Modeled full-year facility demand</small></div>
+            <div><span>25-year total gross value</span><strong>{compactCurrency((selectedImpact.avoidedCost + selectedImpact.annualRecRevenue) * PLANNING_HORIZON_YEARS)}</strong><small>Electricity savings plus REC revenue</small></div>
+            <div><span>25-year electricity savings</span><strong>{compactCurrency(selectedImpact.avoidedCost * PLANNING_HORIZON_YEARS)}</strong><small>On-site PV offset at flat value</small></div>
+            <div><span>25-year REC revenue</span><strong>{compactCurrency(selectedImpact.annualRecRevenue * PLANNING_HORIZON_YEARS)}</strong><small>{compactCurrency(recPrice)} per generated MWh</small></div>
+            <div><span>25-year avoided emissions</span><strong>{compactNumber(selectedImpact.avoidedTons * PLANNING_HORIZON_YEARS)} tons</strong><small>Constant planning emissions factor</small></div>
+            <div><span>25-year REC generation</span><strong>{compactNumber(selectedImpact.annualRecs * PLANNING_HORIZON_YEARS)} RECs</strong><small>One REC per MWh of modeled PV</small></div>
           </div>
         </section>
       </div>
@@ -1618,7 +1644,7 @@ export default function Home() {
         <FacilityModel key={activeSelected.id} facility={activeSelected} hour={hour} coverage={coverageLevel} dayOfYear={dayOfYear} energy={selectedEnergy} impact={selectedImpact} />
         <div className="facility-heading"><div><p className="eyebrow">Selected real facility</p><h2>{activeSelected.name}</h2></div><span>{activeSelected.id}</span></div>
         <p className="agency-name"><strong>{activeSelected.address}, {activeSelected.locality}, VA</strong><span>{activeSelected.agency.name}</span></p>
-        <p className="architecture-source"><strong>Model basis:</strong> building-specific massing interpreted from satellite imagery, published exterior references, documented floor count, roof form and façade rhythm. Generic rooftop boxes are not used; penthouses and roof structures appear only where supported by the building profile. {activeSelected.id === "DGS-738" ? <>The Capitol additionally follows <a href="https://www.google.com/maps/place/Virginia+State+Capitol/" target="_blank" rel="noreferrer">Street View</a> and the <a href="https://www.loc.gov/pictures/item/va1498/" target="_blank" rel="noreferrer">HABS measured record</a>.</> : activeSelected.id === "DGS-702" ? <>The Washington Building follows its official <a href="https://www.dhr.virginia.gov/VLR_to_transfer/PDFNoms/127-6518_Washington_Building_2010_NRHP_final.pdf" target="_blank" rel="noreferrer">National Register documentation</a>: a twelve-story V-plan with an ashlar base, two-story limestone piano nobile, tan-brick shaft, attic story, deep terra-cotta cornice, four rounded outer corners, paired-window rhythms and straight Bank Street entrance joints. The fountain marks the documented Capitol Square entrance axis; the rooftop remains open with no invented penthouse.</> : <>Exterior geometry is a visual reference twin; exact survey geometry requires the facility’s BIM/CAD or LiDAR scan.</>}</p>
+        <p className="architecture-source"><strong>Model basis:</strong> building-specific massing interpreted from satellite imagery, published exterior references, documented floor count, roof form and façade rhythm. Generic rooftop boxes are not used; penthouses and roof structures appear only where supported by the building profile. {activeSelected.id === "DGS-738" ? <>The Capitol additionally follows <a href="https://www.google.com/maps/place/Virginia+State+Capitol/" target="_blank" rel="noreferrer">Street View</a> and the <a href="https://www.loc.gov/pictures/item/va1498/" target="_blank" rel="noreferrer">HABS measured record</a>.</> : activeSelected.id === "DGS-702" ? <>The Washington Building follows <a href="https://www.google.com/maps/search/?api=1&query=George%20Washington%20Building%201100%20Bank%20Street%20Richmond%20VA" target="_blank" rel="noreferrer">Google exterior imagery</a>, a <a href="https://upload.wikimedia.org/wikipedia/commons/f/f6/Washington_Building%2C_Capitol_District.jpg" target="_blank" rel="noreferrer">Capitol Square photograph</a> and its official <a href="https://www.dhr.virginia.gov/VLR_to_transfer/PDFNoms/127-6518_Washington_Building_2010_NRHP_final.pdf" target="_blank" rel="noreferrer">National Register documentation</a>: a twelve-story flared V-plan with an ashlar base, two-story limestone piano nobile, buff-brick shaft, attic story, deep terra-cotta cornice, four rounded outer corners, paired-window rhythms and straight Bank Street entrance joints. The fountain marks the documented Capitol Square entrance axis; the rooftop remains open with no invented penthouse.</> : <>Exterior geometry is a visual reference twin; exact survey geometry requires the facility’s BIM/CAD or LiDAR scan.</>}</p>
         <div className="impact-summary" aria-label={`${coverageLevel}% rooftop PV coverage planning impact`}>
           <div><span>Gross top-floor roof</span><strong>{formatNumber(Math.round(selectedImpact.grossRoofArea))} sq. ft.</strong></div>
           <div><span>Technically usable roof</span><strong>{formatNumber(Math.round(selectedImpact.technicallyUsableRoofArea))} sq. ft.</strong></div>
@@ -1630,8 +1656,10 @@ export default function Home() {
           <div><span>Specific PV yield</span><strong>{compactNumber(selectedPvYield)} kWh/kW</strong></div>
           <div className="impact-emissions"><span>Avoided emissions</span><strong>{compactNumber(selectedImpact.avoidedTons)} tons CO₂e</strong></div>
           <div className="impact-savings"><span>Avoided cost</span><strong>{compactCurrency(selectedImpact.avoidedCost)} / yr</strong></div>
+          <div className="impact-recs"><span>Annual RECs</span><strong>{compactNumber(selectedImpact.annualRecs)} RECs</strong></div>
+          <div className="impact-savings"><span>REC revenue</span><strong>{compactCurrency(selectedImpact.annualRecRevenue)} / yr</strong></div>
         </div>
-        <p className="impact-note">Planning assumptions: {coverageLevel}% of the technically usable roof is developed with a sloped conceptual array. Usable roof is {Math.round(activeSelected.roofUsableShare * 100)}% of gross top-floor area after preliminary allowances for {activeSelected.roofConstraint.toLowerCase()}. Avoided value uses ${electricityRate.toFixed(2)}/kWh and {emissionsFactor.toFixed(2)} lb CO₂e/kWh; project costs are excluded.</p>
+        <p className="impact-note">Planning assumptions: {coverageLevel}% of the technically usable roof is developed as one compact, staged sloped array. Usable roof is {Math.round(activeSelected.roofUsableShare * 100)}% of gross top-floor area after preliminary allowances for {activeSelected.roofConstraint.toLowerCase()}. Electricity savings use ${electricityRate.toFixed(2)}/kWh; emissions use {emissionsFactor.toFixed(2)} lb CO₂e/kWh; RECs use 1 REC per MWh at ${recPrice.toFixed(0)}/MWh. The 25-year outlook holds output and values flat and excludes degradation, escalation and project costs. Selling RECs transfers their renewable attributes, so the same MWh should not also be claimed as retained renewable energy.</p>
 
         <p className="section-kicker"><span>Simulated energy</span>{formatDay(dayOfYear)} · {formatHour(hour)}</p>
         <div className="selected-energy">
