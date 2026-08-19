@@ -80,7 +80,7 @@ input[type="range"] { padding: 0; accent-color: var(--solar); }
 .coverage-control button { border: 0; border-radius: 7px; padding: 7px 8px; color: var(--muted); font-size: 11px; }
 .coverage-control button:hover { transform: none; }
 .coverage-control button.is-active { background: rgba(95,225,167,.18); color: var(--solar); box-shadow: inset 0 0 0 1px rgba(95,225,167,.2); }
-.assumption-panel { display: grid; grid-template-columns: minmax(230px,.85fr) repeat(2,minmax(240px,1fr)); align-items: center; gap: 22px; margin: 0 0 11px; border: 1px solid rgba(136,162,255,.19); border-radius: 16px; background: linear-gradient(120deg,rgba(136,162,255,.07),rgba(95,225,167,.035)); padding: 13px 15px; }
+.assumption-panel { display: grid; grid-template-columns: minmax(210px,.78fr) repeat(3,minmax(190px,1fr)); align-items: center; gap: 19px; margin: 0 0 11px; border: 1px solid rgba(136,162,255,.19); border-radius: 16px; background: linear-gradient(120deg,rgba(136,162,255,.07),rgba(95,225,167,.035)); padding: 13px 15px; }
 .assumption-panel p { margin-bottom: 3px; color: #9fb3ff; }
 .assumption-panel > div > strong,.assumption-panel > div > span { display: block; }
 .assumption-panel > div > strong { font-size: 13px; font-weight: 640; }
@@ -203,6 +203,14 @@ input[type="range"] { padding: 0; accent-color: var(--solar); }
 .model-data-grid > .model-kpi-emissions::after,.model-data-grid > .model-kpi-savings::after { position: absolute; top: 8px; right: 8px; color: var(--solar); font-size: 8px; font-weight: 760; content: "CO₂"; }
 .model-data-grid > .model-kpi-savings { border-color: rgba(232,189,98,.2); background: linear-gradient(145deg,rgba(232,189,98,.09),rgba(255,255,255,.018)); }
 .model-data-grid > .model-kpi-savings::after { color: var(--amber); font-size: 13px; content: "$"; }
+.model-data-grid > .model-kpi-recs { border-color: rgba(136,162,255,.2); background: linear-gradient(145deg,rgba(136,162,255,.095),rgba(255,255,255,.018)); padding-right: 30px; }
+.model-data-grid > .model-kpi-recs::after { position: absolute; top: 8px; right: 8px; color: #9fb3ff; font-size: 8px; font-weight: 780; content: "REC"; }
+.model-horizon-grid { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 7px; margin-top: 10px; border-top: 1px solid rgba(145,202,214,.1); padding-top: 10px; }
+.model-horizon-grid > div { min-width: 0; border-left: 1px solid rgba(145,202,214,.11); padding-left: 8px; }
+.model-horizon-grid > div:first-child { border-left: 0; padding-left: 0; }
+.model-horizon-grid span,.model-horizon-grid strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.model-horizon-grid span { color: #728d99; font-size: 8px; }
+.model-horizon-grid strong { margin-top: 3px; color: #dff3ec; font-size: 11px; font-weight: 670; }
 .model-data-footer { display: grid; gap: 6px; margin-top: 10px; border-top: 1px solid rgba(145,202,214,.1); padding-top: 10px; }.model-data-footer > div { display: grid; grid-template-columns: auto minmax(70px,1fr) auto; align-items: center; gap: 9px; color: #8fa6b1; font-size: 9px; }.model-data-footer strong { color: var(--solar); font-size: 10px; }.model-coverage-track { overflow: hidden; height: 5px; border-radius: 99px; background: rgba(255,255,255,.075); }.model-coverage-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#45b88d,var(--solar)); box-shadow: 0 0 10px rgba(95,225,167,.46); }.model-data-footer p { margin: 0; color: #6f8996; font-size: 8px; text-align: right; }
 .model-fallback { position: absolute; inset: 0; display: grid; place-items: center; background: radial-gradient(circle at 45% 35%,rgba(55,137,142,.25),transparent 44%); }
 .washington-fallback-scene { position: relative; width: 100%; height: 100%; overflow: hidden; background: radial-gradient(ellipse at 50% 71%,rgba(47,89,65,.56),transparent 47%); perspective: 900px; }
@@ -366,13 +374,14 @@ input[type="range"] { padding: 0; accent-color: var(--solar); }
 .scenario-studio-values small { color: #718a96; font-size: 9px; font-weight: 500; }
 .scenario-studio-values b { margin-top: 2px; color: #d7ece7; font-size: 11px; font-weight: 650; }
 .scenario-studio-grid > button.is-active .scenario-studio-level strong,.scenario-studio-grid > button.is-active .scenario-studio-values b { color: #8df3c8; }
-.planning-horizon { position: relative; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; margin-top: 11px; border-top: 1px solid rgba(156,208,218,.1); padding-top: 11px; }
+.planning-horizon { position: relative; display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 8px; margin-top: 11px; border-top: 1px solid rgba(156,208,218,.1); padding-top: 11px; }
 .planning-horizon > div { min-width: 0; border-left: 1px solid rgba(156,208,218,.11); padding-left: 10px; }
 .planning-horizon > div:first-child { border-left: 0; padding-left: 0; }
 .planning-horizon span,.planning-horizon strong,.planning-horizon small { display: block; }
 .planning-horizon span { color: #8299a4; font-size: 9px; line-height: 1.35; }
 .planning-horizon strong { margin: 4px 0 3px; color: #eff9f6; font-size: 16px; font-weight: 670; letter-spacing: -.02em; }
 .planning-horizon small { color: #617984; font-size: 8px; line-height: 1.4; }
-@media (max-width: 720px) { .scenario-studio-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }.planning-horizon { grid-template-columns: 1fr; }.planning-horizon > div { border-top: 1px solid rgba(156,208,218,.09); border-left: 0; padding: 8px 0 0; }.planning-horizon > div:first-child { border-top: 0; padding-top: 0; } }
+@media (max-width: 1080px) { .planning-horizon { grid-template-columns: repeat(3,minmax(0,1fr)); }.model-horizon-grid { grid-template-columns: repeat(3,minmax(0,1fr)); } }
+@media (max-width: 720px) { .scenario-studio-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }.planning-horizon,.model-horizon-grid { grid-template-columns: 1fr; }.planning-horizon > div,.model-horizon-grid > div { border-top: 1px solid rgba(156,208,218,.09); border-left: 0; padding: 8px 0 0; }.planning-horizon > div:first-child,.model-horizon-grid > div:first-child { border-top: 0; padding-top: 0; } }
 @media (max-width: 460px) { .scenario-studio-heading { align-items: flex-start; flex-direction: column; }.scenario-studio-heading > span { max-width: none; text-align: left; }.scenario-studio-grid { grid-template-columns: 1fr; } }
 @media (max-width: 460px) { .commonwealth-brand { width: 100%; }.commonwealth-logo-tile { width: 64px; }.commonwealth-brand strong { font-size: 11px; } }
