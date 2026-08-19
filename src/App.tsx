@@ -1226,6 +1226,16 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
           <div className="capitol-hyphen hyphen-right" />
           <div className="capitol-steps">{Array.from({ length: 10 }, (_, index) => <i key={index} />)}</div>
         </div>
+      </div> : facility.id === "DGS-702" ? <div className="washington-fallback-scene">
+        <div className="washington-css-building">
+          <div className="washington-wing washington-wing-left"><span /></div>
+          <div className="washington-bank-bar"><span /></div>
+          <div className="washington-wing washington-wing-right"><span /></div>
+          <div className="washington-cornice" />
+          <div className="washington-portico"><i /><i /><i /><i /></div>
+          <div className="washington-pv-field">{Array.from({ length: fallbackPanelCount }, (_, index) => <span key={index} className={index < fallbackActivePanels ? "is-active" : ""} />)}</div>
+        </div>
+        <div className="washington-fountain"><i /></div>
       </div> : <div className={`mini-building profile-${selectedProfile.kind}`} style={{ height: `${Math.min(245, 92 + facility.floors * 5)}px` }}>
           {Array.from({ length: facility.floors }, (_, index) => <i key={index} style={{ background: `linear-gradient(90deg,${fallbackWallColor},#667981)` }} />)}
           <div className="mini-roof">{Array.from({ length: fallbackPanelCount }, (_, index) => <span key={index} className={index < fallbackActivePanels ? "is-active" : ""} />)}</div>
