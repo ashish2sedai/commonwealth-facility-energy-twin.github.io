@@ -278,20 +278,20 @@ input[type="range"] { padding: 0; accent-color: var(--solar); }
 @media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
 /* Selected facility readability refinement */
-.detail-panel .facility-heading h2 { font-size: 22px; }
-.detail-panel .agency-name { font-size: 13px; line-height: 1.45; }
-.detail-panel .architecture-source { font-size: 11px; line-height: 1.65; }
-.detail-panel .impact-summary span { font-size: 11px; }
-.detail-panel .impact-summary strong { font-size: 16px; }
-.detail-panel .impact-note { font-size: 10.5px; line-height: 1.6; }
-.detail-panel .section-kicker { font-size: 10px; }
-.detail-panel .selected-energy span { font-size: 10px; }
-.detail-panel .selected-energy strong { font-size: 15px; }
+.detail-panel .facility-heading h2 { font-size: 25px; }
+.detail-panel .agency-name { font-size: 15px; line-height: 1.5; }
+.detail-panel .architecture-source { font-size: 13px; line-height: 1.7; }
+.detail-panel .impact-summary span { font-size: 13px; }
+.detail-panel .impact-summary strong { font-size: 18px; }
+.detail-panel .impact-note { font-size: 12px; line-height: 1.65; }
+.detail-panel .section-kicker { font-size: 11px; }
+.detail-panel .selected-energy span { font-size: 11px; }
+.detail-panel .selected-energy strong { font-size: 17px; }
 .detail-panel .facility-facts dt,
-.detail-panel .facility-facts dd { font-size: 11px; }
-.facility-model .model-data-head { font-size: 8.5px; }
-.facility-model .model-data-head strong { font-size: 9.5px; }
-.facility-model .model-data-grid span { font-size: 8px; }
-.facility-model .model-data-grid strong { font-size: 12px; }
-.facility-model .model-data-grid small { font-size: 8px; }
-.facility-model .model-data-overlay > p { font-size: 8px; }
+.detail-panel .facility-facts dd { font-size: 12px; }
+.facility-model .model-data-head { font-size: 10px; }
+.facility-model .model-data-head strong { font-size: 11px; }
+.facility-model .model-data-grid span { font-size: 10px; }
+.facility-model .model-data-grid strong { font-size: 14px; }
+.facility-model .model-data-grid small { font-size: 9px; }
+.facility-model .model-data-overlay > p { font-size: 10px; }
