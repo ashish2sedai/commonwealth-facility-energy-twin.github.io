@@ -191,7 +191,7 @@ const modelProfiles: Record<string, FacilityModelProfile> = {
   "DGS-727": { kind:"row", roof:"gable", facade:"punched", aspect:0.48, wall:0xb16f52, glass:0x243b41, label:"Reid’s Row townhouse" },
   "DGS-728": { kind:"row", roof:"gable", facade:"punched", aspect:0.52, wall:0xa9654c, glass:0x243b41, label:"Reid’s Row townhouse" },
   "DGS-748": { kind:"row", roof:"gable", facade:"punched", aspect:0.5, wall:0xb87858, glass:0x243b41, label:"Reid’s Row townhouse" },
-  "DGS-702": { kind:"u", roof:"flat", facade:"punched", aspect:1.18, wall:0xc9b691, glass:0x243c49, podiumFloors:2, portico:true, label:"Tapered V-plan Beaux-Arts Washington Building" },
+  "DGS-702": { kind:"u", roof:"flat", facade:"punched", aspect:1.18, wall:0xc9b691, glass:0x243c49, podiumFloors:2, portico:true, label:"V-plan Renaissance Revival Washington Building" },
   "DGS-731": { kind:"l", roof:"flat", aspect:2.15, wall:0xd4d2ca, glass:0x35596a, label:"War Memorial L-plan" },
   "DGS-778": { kind:"courtyard", roof:"mansard", facade:"punched", aspect:1.1, wall:0x9a785b, glass:0x233e48, clockTower:true, label:"Old City Hall atrium + clock tower" },
   "DGS-709": { kind:"slab", roof:"crown", aspect:1.7, wall:0xb5aaa0, glass:0x31586b, podiumFloors:2, label:"James Madison tower slab" },
@@ -253,6 +253,15 @@ function compactCurrency(value: number) {
 
 function compactNumber(value: number) {
   return new Intl.NumberFormat("en-US", { notation:"compact", maximumFractionDigits:1 }).format(value);
+}
+
+type PortfolioMetricIconKind = "facilities" | "demand" | "emissions" | "savings";
+
+function PortfolioMetricIcon({ kind }: { kind: PortfolioMetricIconKind }) {
+  if (kind === "facilities") return <span className="metric-glyph metric-glyph-facilities" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M8 40V20l10-6v26M18 40V8l14 6v26M32 40V22l8 4v14M4 40h40"/><path d="M22 15h4m-4 7h4m-4 7h4m-14-3h2m-2 6h2m22-3h1"/></svg></span>;
+  if (kind === "demand") return <span className="metric-glyph metric-glyph-demand" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M28 4 12 27h11l-3 17 16-24H25z"/><path d="M8 39h7m20 0h5"/></svg></span>;
+  if (kind === "emissions") return <span className="metric-glyph metric-glyph-emissions" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M39 9C23 10 11 17 9 29c-1 7 4 12 11 11 13-2 18-16 19-31Z"/><path d="M11 38c7-8 13-13 24-23M20 24c0 5 1 8 4 11"/><text x="27" y="42">CO₂</text></svg></span>;
+  return <span className="metric-glyph metric-glyph-savings" aria-hidden="true"><svg viewBox="0 0 48 48"><circle cx="22" cy="23" r="14"/><path d="M26 16c-1-2-3-3-6-3-4 0-6 2-6 5 0 7 13 3 13 10 0 3-3 6-7 6-3 0-6-1-7-4M21 9v28M34 29v10m0 0-4-4m4 4 4-4"/></svg></span>;
 }
 
 type TwinViewMode = "exterior" | "rooftop";
@@ -363,14 +372,14 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
     const panelModules: Array<InstanceType<typeof THREE.Object3D>> = [];
     const windowMaterials: Array<InstanceType<typeof THREE.MeshStandardMaterial>> = [];
     const modelRoot = new THREE.Group();
-    modelRoot.rotation.y = isCapitol ? -0.12 : ((facility.seed % 5) - 2) * 0.055;
+    modelRoot.rotation.y = isCapitol ? -0.12 : facility.id === "DGS-702" ? -0.08 : ((facility.seed % 5) - 2) * 0.055;
     scene.add(modelRoot);
     let tourRoofY = isCapitol ? 2.9 : buildingHeight + 0.55;
     let tourWidth = isCapitol ? 2.3 : 5;
     let tourDepth = isCapitol ? 4.55 : 4;
     let tourCenterX = isCapitol ? 4.5 : 0;
     let tourCenterZ = isCapitol ? -0.05 : 0;
-    let customRoofFields: Array<{ x: number; z: number; width: number; depth: number; y: number }> = [];
+    let customRoofFields: Array<{ x: number; z: number; width: number; depth: number; y: number; rotation?: number }> = [];
     const addBox = (dimensions: [number, number, number], position: [number, number, number], material: InstanceType<typeof THREE.Material>, parent = modelRoot) => {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(...dimensions), material);
       mesh.position.set(...position);
@@ -633,7 +642,7 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
       const footprintScale = Math.min(1.48, Math.max(0.7, Math.sqrt(facility.area / facility.floors) / 185));
       const width = 5.05 * footprintScale * Math.sqrt(profile.aspect);
       const depth = 4.05 * footprintScale / Math.sqrt(profile.aspect);
-      type MassPart = [number, number, number, number];
+      type MassPart = [number, number, number, number, number?];
       const massParts = (floorIndex: number): MassPart[] => {
         const floorRatio = facility.floors <= 1 ? 0 : floorIndex / (facility.floors - 1);
         switch (profile.kind) {
@@ -649,13 +658,23 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
           case "slab": return [[width, depth * 0.64, 0, 0]];
           case "l": return [[width, depth * 0.45, 0, depth * 0.26], [width * 0.36, depth * 0.66, -width * 0.32, -depth * 0.13]];
           case "u": {
-            const washingtonTaper = facility.id === "DGS-702"
-              ? floorIndex < 2 ? 1.035 : floorIndex === facility.floors - 1 ? 0.965 : 1 - floorRatio * 0.012
-              : 1;
+            if (facility.id === "DGS-702") {
+              // The Washington Building is a broad V, not a rectangular U.
+              // Its paired office wings flare toward Capitol Square while the
+              // short Bank Street bar closes the point of the plan. The upper
+              // stories retain the same footprint instead of stepping inward.
+              const baseScale = floorIndex < 2 ? 1.018 : floorIndex === facility.floors - 1 ? 0.992 : 1;
+              const wingAngle = THREE.MathUtils.degToRad(10.5);
+              return [
+                [width * 0.58 * baseScale, depth * 0.28 * baseScale, 0, -depth * 0.38, 0],
+                [width * 0.245 * baseScale, depth * 0.86 * baseScale, -width * 0.265, depth * 0.035, -wingAngle],
+                [width * 0.245 * baseScale, depth * 0.86 * baseScale, width * 0.265, depth * 0.035, wingAngle],
+              ];
+            }
             return [
-              [width * washingtonTaper, depth * 0.32 * washingtonTaper, 0, -depth * 0.34],
-              [width * 0.24 * washingtonTaper, depth * 0.72 * washingtonTaper, -width * 0.38 * washingtonTaper, depth * 0.12],
-              [width * 0.24 * washingtonTaper, depth * 0.72 * washingtonTaper, width * 0.38 * washingtonTaper, depth * 0.12],
+              [width, depth * 0.32, 0, -depth * 0.34],
+              [width * 0.24, depth * 0.72, -width * 0.38, depth * 0.12],
+              [width * 0.24, depth * 0.72, width * 0.38, depth * 0.12],
             ];
           }
           case "courtyard": return [[width, depth * 0.27, 0, -depth * 0.37], [width, depth * 0.27, 0, depth * 0.37], [width * 0.25, depth * 0.48, -width * 0.375, 0], [width * 0.25, depth * 0.48, width * 0.375, 0]];
@@ -683,17 +702,27 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
         const slabMaterial = new THREE.MeshStandardMaterial({ color: 0xb8cad3, metalness: 0.4, roughness: 0.42 });
         const windowMaterial = new THREE.MeshStandardMaterial({ color: profile.glass, emissive: 0x0d3d46, emissiveIntensity: 0.2, metalness: 0.24, roughness: 0.2 });
         windowMaterials.push(windowMaterial);
-        massParts(index).forEach(([partWidth, partDepth, partX, partZ]) => {
+        massParts(index).forEach(([partWidth, partDepth, partX, partZ, partRotation = 0]) => {
           const floorY = 0.42 + index * floorPitch;
+          const partParent = isWashington ? new THREE.Group() : modelRoot;
           if (isWashington) {
-            addRoundedBox([partWidth, floorPitch * 0.78, partDepth], [partX, floorY, partZ], material, 0.16);
-            addRoundedBox([partWidth + 0.1, 0.055, partDepth + 0.1], [partX, 0.12 + index * floorPitch, partZ], slabMaterial, 0.12);
+            partParent.position.set(partX, 0, partZ);
+            partParent.rotation.y = partRotation;
+            modelRoot.add(partParent);
+          }
+          const localX = isWashington ? 0 : partX;
+          const localZ = isWashington ? 0 : partZ;
+          const partBox = (dimensions: [number, number, number], position: [number, number, number], boxMaterial: InstanceType<typeof THREE.Material>) => addBox(dimensions, position, boxMaterial, partParent);
+          const partRoundedBox = (dimensions: [number, number, number], position: [number, number, number], boxMaterial: InstanceType<typeof THREE.Material>, radius: number) => addRoundedBox(dimensions, position, boxMaterial, radius, partParent);
+          if (isWashington) {
+            partRoundedBox([partWidth, floorPitch * 0.78, partDepth], [localX, floorY, localZ], material, 0.15);
+            partRoundedBox([partWidth + 0.1, 0.055, partDepth + 0.1], [localX, 0.12 + index * floorPitch, localZ], slabMaterial, 0.1);
             if (index === 1 || index === facility.floors - 1) {
-              addRoundedBox([partWidth + 0.16, 0.075, partDepth + 0.16], [partX, floorY + floorPitch * 0.43, partZ], slabMaterial, 0.13);
+              partRoundedBox([partWidth + 0.16, 0.075, partDepth + 0.16], [localX, floorY + floorPitch * 0.43, localZ], slabMaterial, 0.12);
             }
           } else {
-            addBox([partWidth, floorPitch * 0.78, partDepth], [partX, floorY, partZ], material);
-            addBox([partWidth + 0.1, 0.055, partDepth + 0.1], [partX, 0.12 + index * floorPitch, partZ], slabMaterial);
+            partBox([partWidth, floorPitch * 0.78, partDepth], [localX, floorY, localZ], material);
+            partBox([partWidth + 0.1, 0.055, partDepth + 0.1], [localX, 0.12 + index * floorPitch, localZ], slabMaterial);
           }
           const windowHeight = Math.max(0.08, floorPitch * (profile.kind === "warehouse" ? 0.2 : 0.31));
           if (profile.facade === "punched") {
@@ -702,42 +731,42 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
             const frontWindowWidth = Math.min(0.34, partWidth * 0.58 / frontBays);
             const sideWindowWidth = Math.min(0.32, partDepth * 0.56 / sideBays);
             for (let bay = 0; bay < frontBays; bay += 1) {
-              const windowX = partX - partWidth * 0.36 + bay * (partWidth * 0.72 / Math.max(frontBays - 1, 1));
-              addBox([frontWindowWidth, windowHeight * 1.28, 0.045], [windowX, floorY, partZ + partDepth / 2 + 0.024], windowMaterial);
-              addBox([frontWindowWidth, windowHeight * 1.28, 0.045], [windowX, floorY, partZ - partDepth / 2 - 0.024], windowMaterial);
+              const windowX = localX - partWidth * 0.36 + bay * (partWidth * 0.72 / Math.max(frontBays - 1, 1));
+              partBox([frontWindowWidth, windowHeight * 1.28, 0.045], [windowX, floorY, localZ + partDepth / 2 + 0.024], windowMaterial);
+              partBox([frontWindowWidth, windowHeight * 1.28, 0.045], [windowX, floorY, localZ - partDepth / 2 - 0.024], windowMaterial);
               [-1, 1].forEach((side) => {
-                const frameZ = partZ + side * (partDepth / 2 + 0.052);
-                [-1, 1].forEach((vertical) => addBox([frontWindowWidth + 0.055, 0.028, 0.06], [windowX, floorY + vertical * windowHeight * 0.68, frameZ], facadeTrimMaterial));
+                const frameZ = localZ + side * (partDepth / 2 + 0.052);
+                [-1, 1].forEach((vertical) => partBox([frontWindowWidth + 0.055, 0.028, 0.06], [windowX, floorY + vertical * windowHeight * 0.68, frameZ], facadeTrimMaterial));
               });
             }
             for (let bay = 0; bay < sideBays; bay += 1) {
-              const windowZ = partZ - partDepth * 0.34 + bay * (partDepth * 0.68 / Math.max(sideBays - 1, 1));
-              addBox([0.045, windowHeight * 1.28, sideWindowWidth], [partX + partWidth / 2 + 0.024, floorY, windowZ], windowMaterial);
-              addBox([0.045, windowHeight * 1.28, sideWindowWidth], [partX - partWidth / 2 - 0.024, floorY, windowZ], windowMaterial);
+              const windowZ = localZ - partDepth * 0.34 + bay * (partDepth * 0.68 / Math.max(sideBays - 1, 1));
+              partBox([0.045, windowHeight * 1.28, sideWindowWidth], [localX + partWidth / 2 + 0.024, floorY, windowZ], windowMaterial);
+              partBox([0.045, windowHeight * 1.28, sideWindowWidth], [localX - partWidth / 2 - 0.024, floorY, windowZ], windowMaterial);
               [-1, 1].forEach((side) => {
-                const frameX = partX + side * (partWidth / 2 + 0.052);
-                [-1, 1].forEach((vertical) => addBox([0.06, 0.028, sideWindowWidth + 0.055], [frameX, floorY + vertical * windowHeight * 0.68, windowZ], facadeTrimMaterial));
+                const frameX = localX + side * (partWidth / 2 + 0.052);
+                [-1, 1].forEach((vertical) => partBox([0.06, 0.028, sideWindowWidth + 0.055], [frameX, floorY + vertical * windowHeight * 0.68, windowZ], facadeTrimMaterial));
               });
             }
           } else if (profile.facade === "industrial") {
-            addBox([partWidth * 0.54, windowHeight, 0.045], [partX, floorY, partZ + partDepth / 2 + 0.024], windowMaterial);
-            addBox([partWidth * 0.56, 0.04, 0.07], [partX, floorY - windowHeight * 0.6, partZ + partDepth / 2 + 0.052], facadeTrimMaterial);
+            partBox([partWidth * 0.54, windowHeight, 0.045], [localX, floorY, localZ + partDepth / 2 + 0.024], windowMaterial);
+            partBox([partWidth * 0.56, 0.04, 0.07], [localX, floorY - windowHeight * 0.6, localZ + partDepth / 2 + 0.052], facadeTrimMaterial);
           } else {
-            addBox([partWidth * 0.68, windowHeight, 0.045], [partX, floorY, partZ + partDepth / 2 + 0.024], windowMaterial);
-            addBox([partWidth * 0.68, windowHeight, 0.045], [partX, floorY, partZ - partDepth / 2 - 0.024], windowMaterial);
-            addBox([0.045, windowHeight, partDepth * 0.64], [partX + partWidth / 2 + 0.024, floorY, partZ], windowMaterial);
-            addBox([0.045, windowHeight, partDepth * 0.64], [partX - partWidth / 2 - 0.024, floorY, partZ], windowMaterial);
+            partBox([partWidth * 0.68, windowHeight, 0.045], [localX, floorY, localZ + partDepth / 2 + 0.024], windowMaterial);
+            partBox([partWidth * 0.68, windowHeight, 0.045], [localX, floorY, localZ - partDepth / 2 - 0.024], windowMaterial);
+            partBox([0.045, windowHeight, partDepth * 0.64], [localX + partWidth / 2 + 0.024, floorY, localZ], windowMaterial);
+            partBox([0.045, windowHeight, partDepth * 0.64], [localX - partWidth / 2 - 0.024, floorY, localZ], windowMaterial);
             const frontMullions = Math.max(3, Math.min(9, Math.round(partWidth / 0.7)));
             for (let mullion = 1; mullion < frontMullions; mullion += 1) {
-              const mullionX = partX - partWidth * 0.34 + mullion * (partWidth * 0.68 / frontMullions);
-              addBox([0.025, windowHeight * 1.08, 0.06], [mullionX, floorY, partZ + partDepth / 2 + 0.052], facadeShadowMaterial);
-              addBox([0.025, windowHeight * 1.08, 0.06], [mullionX, floorY, partZ - partDepth / 2 - 0.052], facadeShadowMaterial);
+              const mullionX = localX - partWidth * 0.34 + mullion * (partWidth * 0.68 / frontMullions);
+              partBox([0.025, windowHeight * 1.08, 0.06], [mullionX, floorY, localZ + partDepth / 2 + 0.052], facadeShadowMaterial);
+              partBox([0.025, windowHeight * 1.08, 0.06], [mullionX, floorY, localZ - partDepth / 2 - 0.052], facadeShadowMaterial);
             }
             const sideMullions = Math.max(3, Math.min(7, Math.round(partDepth / 0.75)));
             for (let mullion = 1; mullion < sideMullions; mullion += 1) {
-              const mullionZ = partZ - partDepth * 0.32 + mullion * (partDepth * 0.64 / sideMullions);
-              addBox([0.06, windowHeight * 1.08, 0.025], [partX + partWidth / 2 + 0.052, floorY, mullionZ], facadeShadowMaterial);
-              addBox([0.06, windowHeight * 1.08, 0.025], [partX - partWidth / 2 - 0.052, floorY, mullionZ], facadeShadowMaterial);
+              const mullionZ = localZ - partDepth * 0.32 + mullion * (partDepth * 0.64 / sideMullions);
+              partBox([0.06, windowHeight * 1.08, 0.025], [localX + partWidth / 2 + 0.052, floorY, mullionZ], facadeShadowMaterial);
+              partBox([0.06, windowHeight * 1.08, 0.025], [localX - partWidth / 2 - 0.052, floorY, mullionZ], facadeShadowMaterial);
             }
           }
         });
@@ -745,13 +774,30 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
       const roofY = 0.42 + facility.floors * floorPitch;
       const roofMaterial = new THREE.MeshStandardMaterial({ color: 0x8f9998, roughness: 0.62, metalness: 0.12 });
       const topParts = massParts(Math.max(0, facility.floors - 1));
-      massParts(0).forEach(([partWidth, partDepth, partX, partZ]) => {
-        addBox([partWidth + 0.14, 0.16, partDepth + 0.14], [partX, 0.15, partZ], plinthMaterial);
+      massParts(0).forEach(([partWidth, partDepth, partX, partZ, partRotation = 0]) => {
+        if (facility.id === "DGS-702") {
+          const plinthGroup = new THREE.Group();
+          plinthGroup.position.set(partX, 0, partZ);
+          plinthGroup.rotation.y = partRotation;
+          modelRoot.add(plinthGroup);
+          addRoundedBox([partWidth + 0.14, 0.16, partDepth + 0.14], [0, 0.15, 0], plinthMaterial, 0.11, plinthGroup);
+        } else addBox([partWidth + 0.14, 0.16, partDepth + 0.14], [partX, 0.15, partZ], plinthMaterial);
       });
-      topParts.forEach(([partWidth, partDepth, partX, partZ]) => {
-        if (facility.id === "DGS-702") addRoundedBox([partWidth + 0.12, 0.12, partDepth + 0.12], [partX, roofY, partZ], roofMaterial, 0.14);
-        else addBox([partWidth + 0.12, 0.12, partDepth + 0.12], [partX, roofY, partZ], roofMaterial);
-        if (profile.facade !== "industrial") addBox([partWidth + 0.18, 0.07, partDepth + 0.18], [partX, roofY - 0.08, partZ], facadeTrimMaterial);
+      topParts.forEach(([partWidth, partDepth, partX, partZ, partRotation = 0]) => {
+        if (facility.id === "DGS-702") {
+          const roofPartGroup = new THREE.Group();
+          roofPartGroup.position.set(partX, 0, partZ);
+          roofPartGroup.rotation.y = partRotation;
+          modelRoot.add(roofPartGroup);
+          addRoundedBox([partWidth + 0.12, 0.12, partDepth + 0.12], [0, roofY, 0], roofMaterial, 0.12, roofPartGroup);
+          // The preserved deep terra-cotta entablature reads as a strong, broad
+          // crown; no invented rooftop penthouse is added above it.
+          addRoundedBox([partWidth + 0.34, 0.14, partDepth + 0.34], [0, roofY - 0.16, 0], facadeTrimMaterial, 0.12, roofPartGroup);
+          addRoundedBox([partWidth + 0.46, 0.09, partDepth + 0.46], [0, roofY - 0.25, 0], facadeTrimMaterial, 0.11, roofPartGroup);
+        } else {
+          addBox([partWidth + 0.12, 0.12, partDepth + 0.12], [partX, roofY, partZ], roofMaterial);
+          if (profile.facade !== "industrial") addBox([partWidth + 0.18, 0.07, partDepth + 0.18], [partX, roofY - 0.08, partZ], facadeTrimMaterial);
+        }
       });
 
       const [roofWidth, roofDepth, roofX, roofZ] = topParts[0];
@@ -791,12 +837,13 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
         tourWidth = width * 0.9;
         tourDepth = depth * 0.86;
         tourRoofY = roofY + 0.1;
-        customRoofFields = topParts.map(([partWidth, partDepth, partX, partZ]) => ({
+        customRoofFields = topParts.map(([partWidth, partDepth, partX, partZ, partRotation = 0]) => ({
           x: partX,
           z: partZ,
-          width: partWidth * 0.98,
-          depth: partDepth * 0.96,
+          width: partWidth * 0.97,
+          depth: partDepth * 0.965,
           y: roofY + 0.18,
+          rotation: partRotation,
         }));
       } else if (profile.roof === "flat" && topParts.length > 1) {
         // Complex flat roofs use every top-floor mass instead of placing the
@@ -903,7 +950,57 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
         }
       }
 
-      if (profile.portico) {
+      if (profile.portico && facility.id === "DGS-702") {
+        const entranceStone = new THREE.MeshPhysicalMaterial({ color: 0xe1d7c4, roughness: 0.5, clearcoat: 0.08 });
+        const darkDoor = new THREE.MeshStandardMaterial({ color: 0x263335, roughness: 0.36, metalness: 0.18 });
+        const porticoWidth = width * 0.37;
+        const capitolPorticoZ = depth * 0.48;
+        const bankPorticoZ = -depth * 0.54;
+        [0, 1, 2, 3].forEach((step) => {
+          const stepDepth = 0.94 - step * 0.14;
+          addBox([porticoWidth + 0.34 - step * 0.05, 0.065, stepDepth], [0, 0.12 + step * 0.05, capitolPorticoZ + stepDepth * 0.37], entranceStone);
+        });
+        [-0.75, -0.25, 0.25, 0.75].forEach((position) => {
+          const column = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.1, 1.38, 24), entranceStone);
+          column.position.set(position * porticoWidth * 0.47, 0.98, capitolPorticoZ);
+          column.castShadow = true;
+          modelRoot.add(column);
+          const capital = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.095, 0.09, 24), entranceStone);
+          capital.position.set(position * porticoWidth * 0.47, 1.71, capitolPorticoZ);
+          modelRoot.add(capital);
+        });
+        addBox([porticoWidth, 0.18, 0.52], [0, 1.78, capitolPorticoZ], entranceStone);
+        const porticoPedimentShape = new THREE.Shape();
+        porticoPedimentShape.moveTo(-porticoWidth / 2, 0);
+        porticoPedimentShape.lineTo(0, 0.42);
+        porticoPedimentShape.lineTo(porticoWidth / 2, 0);
+        porticoPedimentShape.closePath();
+        const porticoPediment = new THREE.Mesh(new THREE.ExtrudeGeometry(porticoPedimentShape, { depth: 0.42, bevelEnabled: false }), entranceStone);
+        porticoPediment.position.set(0, 1.88, capitolPorticoZ - 0.21);
+        porticoPediment.castShadow = true;
+        modelRoot.add(porticoPediment);
+        addBox([porticoWidth * 0.42, 0.88, 0.06], [0, 0.72, capitolPorticoZ + 0.27], darkDoor);
+        // The Bank Street entry is ceremonial too, but its two adjoining wall
+        // joints remain straight as documented in the National Register form.
+        addBox([porticoWidth * 0.82, 0.11, 0.34], [0, 1.48, bankPorticoZ], entranceStone);
+        addBox([porticoWidth * 0.35, 0.84, 0.06], [0, 0.72, bankPorticoZ - 0.19], darkDoor);
+
+        // Notman's fountain is the axial landscape marker used to orient the
+        // Capitol Square entrance and makes the exterior twin recognizable.
+        const fountainStone = new THREE.MeshStandardMaterial({ color: 0xb9b4aa, roughness: 0.82 });
+        const fountainWater = new THREE.MeshPhysicalMaterial({ color: 0x4f9ca7, roughness: 0.16, metalness: 0.08, clearcoat: 1, clearcoatRoughness: 0.06 });
+        const fountainBase = new THREE.Mesh(new THREE.CylinderGeometry(0.76, 0.84, 0.18, 48), fountainStone);
+        fountainBase.position.set(0, 0.13, depth * 1.28);
+        fountainBase.castShadow = true;
+        modelRoot.add(fountainBase);
+        const fountainPool = new THREE.Mesh(new THREE.CylinderGeometry(0.64, 0.64, 0.025, 48), fountainWater);
+        fountainPool.position.set(0, 0.235, depth * 1.28);
+        modelRoot.add(fountainPool);
+        const fountainPedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.18, 0.46, 28), fountainStone);
+        fountainPedestal.position.set(0, 0.42, depth * 1.28);
+        fountainPedestal.castShadow = true;
+        modelRoot.add(fountainPedestal);
+      } else if (profile.portico) {
         const porticoZ = depth * 0.46;
         [-0.72, -0.24, 0.24, 0.72].forEach((position) => {
           const column = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, Math.min(1.4, buildingHeight * 0.78), 20), new THREE.MeshStandardMaterial({ color: 0xeee9dc, roughness: 0.58 }));
@@ -921,10 +1018,11 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
       const pitchAngle = pitched ? -Math.atan2(pitchRise, roofWidth / 2) : 0;
       const rackTilt = THREE.MathUtils.degToRad(facility.id === "DGS-702" ? 11 : 12);
       const frameMaterial = new THREE.MeshStandardMaterial({ color: 0xa8b3b5, metalness: 0.72, roughness: 0.28 });
-      const addPvModule = (panelX: number, panelZ: number, roofSurfaceY: number, panelWidth: number, panelDepth: number, modulePitch: number, useSupports: boolean) => {
+      const addPvModule = (panelX: number, panelZ: number, roofSurfaceY: number, panelWidth: number, panelDepth: number, modulePitch: number, useSupports: boolean, yaw = 0) => {
           const pvModule = new THREE.Group();
           modelRoot.add(pvModule);
           pvModule.position.set(panelX, roofSurfaceY + 0.06, panelZ);
+          pvModule.rotation.y = yaw;
           const rack = new THREE.Group();
           rack.rotation.z = modulePitch;
           if (useSupports) rack.rotation.x = -rackTilt;
@@ -956,19 +1054,22 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
         return Array.from({ length: pvRows * pvColumns }, (_, slot) => {
           const row = Math.floor(slot / pvColumns);
           const column = slot % pvColumns;
-          const panelX = arrayField.x - arrayWidth * 0.5 + arrayWidth * (column + 0.5) / pvColumns;
-          const panelZ = arrayField.z - arrayDepth * 0.5 + arrayDepth * (row + 0.5) / pvRows;
+          const localPanelX = -arrayWidth * 0.5 + arrayWidth * (column + 0.5) / pvColumns;
+          const localPanelZ = -arrayDepth * 0.5 + arrayDepth * (row + 0.5) / pvRows;
+          const fieldRotation = arrayField.rotation ?? 0;
+          const panelX = arrayField.x + localPanelX * Math.cos(fieldRotation) + localPanelZ * Math.sin(fieldRotation);
+          const panelZ = arrayField.z - localPanelX * Math.sin(fieldRotation) + localPanelZ * Math.cos(fieldRotation);
           const roofSurfaceY = pitched
             ? roofY + 0.07 + pitchRise * Math.max(0, 1 - Math.abs(panelX - roofX) / (roofWidth / 2))
             : arrayField.y;
-          return { x: panelX, z: panelZ, y: roofSurfaceY, width: panelWidth, depth: panelDepth };
+          return { x: panelX, z: panelZ, y: roofSurfaceY, width: panelWidth, depth: panelDepth, rotation: fieldRotation };
         });
       });
       const longestField = Math.max(...fieldLayouts.map((layout) => layout.length));
       for (let slot = 0; slot < longestField; slot += 1) {
         fieldLayouts.forEach((layout) => {
           const panel = layout[slot];
-          if (panel) addPvModule(panel.x, panel.z, panel.y, panel.width, panel.depth, pitchAngle, !pitched);
+          if (panel) addPvModule(panel.x, panel.z, panel.y, panel.width, panel.depth, pitchAngle, !pitched, panel.rotation);
         });
       }
     }
@@ -982,10 +1083,14 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
       ? customRoofFields
       : [{ x: tourCenterX, z: tourCenterZ, width: tourWidth, depth: tourDepth, y: tourRoofY + 0.075 }];
     guideFields.forEach((field) => {
-      addBox([field.width, 0.018, 0.035], [field.x, field.y, field.z - field.depth / 2], guideMaterial, roofGuideGroup);
-      addBox([field.width, 0.018, 0.035], [field.x, field.y, field.z + field.depth / 2], guideMaterial, roofGuideGroup);
-      addBox([0.035, 0.018, field.depth], [field.x - field.width / 2, field.y, field.z], guideMaterial, roofGuideGroup);
-      addBox([0.035, 0.018, field.depth], [field.x + field.width / 2, field.y, field.z], guideMaterial, roofGuideGroup);
+      const fieldGuide = new THREE.Group();
+      fieldGuide.position.set(field.x, 0, field.z);
+      fieldGuide.rotation.y = field.rotation ?? 0;
+      roofGuideGroup.add(fieldGuide);
+      addBox([field.width, 0.018, 0.035], [0, field.y, -field.depth / 2], guideMaterial, fieldGuide);
+      addBox([field.width, 0.018, 0.035], [0, field.y, field.depth / 2], guideMaterial, fieldGuide);
+      addBox([0.035, 0.018, field.depth], [-field.width / 2, field.y, 0], guideMaterial, fieldGuide);
+      addBox([0.035, 0.018, field.depth], [field.width / 2, field.y, 0], guideMaterial, fieldGuide);
     });
     roofGuideGroup.visible = false;
 
@@ -1142,11 +1247,11 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
         <div><span>PV capacity</span><strong>{compactNumber(impact.activePvCapacity)} <small>kW</small></strong></div>
         <div><span>Annual PV</span><strong>{compactNumber(impact.annualPvKwh / 1000)} <small>MWh</small></strong></div>
         <div><span>Demand offset</span><strong>{demandOffset.toFixed(1)}<small>% /yr</small></strong></div>
-        <div><span>CO₂e avoided</span><strong>{compactNumber(impact.avoidedTons)} <small>t/yr</small></strong></div>
-        <div><span>Cost avoided</span><strong>{compactCurrency(impact.avoidedCost)} <small>/yr</small></strong></div>
+        <div className="model-kpi-emissions"><span>CO₂e avoided</span><strong>{compactNumber(impact.avoidedTons)} <small>t/yr</small></strong></div>
+        <div className="model-kpi-savings"><span>Cost avoided</span><strong>{compactCurrency(impact.avoidedCost)} <small>/yr</small></strong></div>
         <div><span>PV yield</span><strong>{compactNumber(pvYield)} <small>kWh/kW</small></strong></div>
       </div>
-      <p>{coverage}% of usable roof · {formatNumber(Math.round(impact.selectedRoofArea))} sq. ft. · {facility.id === "DGS-702" ? "balanced three-zone array" : "sloped planning array"}</p>
+      <p>{coverage}% of usable roof · {formatNumber(Math.round(impact.selectedRoofArea))} sq. ft. · {facility.id === "DGS-702" ? "three connected V-plan roof zones" : "sloped planning array"}</p>
     </div>
   </div>;
 }
@@ -1368,10 +1473,10 @@ export default function Home() {
     </header>
 
     <section className="metrics" aria-label="Portfolio energy summary">
-      <article className="metric-card"><span>Real facility sites shown</span><strong>{visible.length}<small> / {facilities.length}</small></strong><em>{agencyFilter === "ALL" ? "Publicly listed DGS portfolio" : agencyFilter}</em></article>
-      <article className="metric-card load-card"><span>Simulated electric demand</span><strong>{(totals.load / 1000).toFixed(1)}<small> MW</small></strong><em>{formatDay(dayOfYear)} · {formatHour(hour)}</em></article>
-      <article className="metric-card emissions-card"><span>Annual avoided emissions</span><strong>{compactNumber(totals.avoidedTons)}<small> tons</small></strong><em>{coverageLevel}% of technically usable roof</em></article>
-      <article className="metric-card savings-card"><span>Annual avoided electricity cost</span><strong>{compactCurrency(totals.avoidedCost)}</strong><em>Gross value before project costs</em></article>
+      <article className="metric-card"><PortfolioMetricIcon kind="facilities" /><span className="metric-label">Real facility sites shown</span><strong>{visible.length}<small> / {facilities.length}</small></strong><em>{agencyFilter === "ALL" ? "Publicly listed DGS portfolio" : agencyFilter}</em><i className="metric-accent" /></article>
+      <article className="metric-card load-card"><PortfolioMetricIcon kind="demand" /><span className="metric-label">Simulated electric demand</span><strong>{(totals.load / 1000).toFixed(1)}<small> MW</small></strong><em>{formatDay(dayOfYear)} · {formatHour(hour)}</em><i className="metric-accent" /></article>
+      <article className="metric-card emissions-card"><PortfolioMetricIcon kind="emissions" /><span className="metric-label">Annual avoided emissions</span><strong>{compactNumber(totals.avoidedTons)}<small> tons CO₂e</small></strong><em>{coverageLevel}% of technically usable roof</em><i className="metric-accent" /></article>
+      <article className="metric-card savings-card"><PortfolioMetricIcon kind="savings" /><span className="metric-label">Annual avoided electricity cost</span><strong>{compactCurrency(totals.avoidedCost)}</strong><em>Gross annual value before project costs</em><i className="metric-accent" /></article>
     </section>
 
     <section className="control-bar" aria-label="Portfolio controls">
@@ -1498,7 +1603,7 @@ export default function Home() {
         <FacilityModel key={activeSelected.id} facility={activeSelected} hour={hour} coverage={coverageLevel} dayOfYear={dayOfYear} energy={selectedEnergy} impact={selectedImpact} />
         <div className="facility-heading"><div><p className="eyebrow">Selected real facility</p><h2>{activeSelected.name}</h2></div><span>{activeSelected.id}</span></div>
         <p className="agency-name"><strong>{activeSelected.address}, {activeSelected.locality}, VA</strong><span>{activeSelected.agency.name}</span></p>
-        <p className="architecture-source"><strong>Model basis:</strong> building-specific massing interpreted from satellite imagery, published exterior references, documented floor count, roof form and façade rhythm. Generic rooftop boxes are not used; penthouses and roof structures appear only where supported by the building profile. {activeSelected.id === "DGS-738" ? <>The Capitol additionally follows <a href="https://www.google.com/maps/place/Virginia+State+Capitol/" target="_blank" rel="noreferrer">Street View</a> and the <a href="https://www.loc.gov/pictures/item/va1498/" target="_blank" rel="noreferrer">HABS measured record</a>.</> : activeSelected.id === "DGS-702" ? <>The Washington Building exterior follows its official <a href="https://www.dhr.virginia.gov/VLR_to_transfer/PDFNoms/127-6518_Washington_Building_2010_NRHP_final.pdf" target="_blank" rel="noreferrer">National Register documentation</a>: twelve-story V/U plan, tapered massing, four historically rounded outer corners, two straight Bank Street entrance joints and a deep cornice. The rooftop planning view uses the broad open low-slope zones visible in the current aerial reference.</> : <>Exterior geometry is a visual reference twin; exact survey geometry requires the facility’s BIM/CAD or LiDAR scan.</>}</p>
+        <p className="architecture-source"><strong>Model basis:</strong> building-specific massing interpreted from satellite imagery, published exterior references, documented floor count, roof form and façade rhythm. Generic rooftop boxes are not used; penthouses and roof structures appear only where supported by the building profile. {activeSelected.id === "DGS-738" ? <>The Capitol additionally follows <a href="https://www.google.com/maps/place/Virginia+State+Capitol/" target="_blank" rel="noreferrer">Street View</a> and the <a href="https://www.loc.gov/pictures/item/va1498/" target="_blank" rel="noreferrer">HABS measured record</a>.</> : activeSelected.id === "DGS-702" ? <>The Washington Building follows its official <a href="https://www.dhr.virginia.gov/VLR_to_transfer/PDFNoms/127-6518_Washington_Building_2010_NRHP_final.pdf" target="_blank" rel="noreferrer">National Register documentation</a>: a twelve-story V-plan with an ashlar base, two-story limestone piano nobile, tan-brick shaft, attic story, deep terra-cotta cornice, four rounded outer corners, paired-window rhythms and straight Bank Street entrance joints. The fountain marks the documented Capitol Square entrance axis; the rooftop remains open with no invented penthouse.</> : <>Exterior geometry is a visual reference twin; exact survey geometry requires the facility’s BIM/CAD or LiDAR scan.</>}</p>
         <div className="impact-summary" aria-label={`${coverageLevel}% rooftop PV coverage planning impact`}>
           <div><span>Gross top-floor roof</span><strong>{formatNumber(Math.round(selectedImpact.grossRoofArea))} sq. ft.</strong></div>
           <div><span>Technically usable roof</span><strong>{formatNumber(Math.round(selectedImpact.technicallyUsableRoofArea))} sq. ft.</strong></div>
@@ -1508,8 +1613,8 @@ export default function Home() {
           <div><span>PV energy used on site</span><strong>{selectedSelfConsumption.toFixed(1)}%</strong></div>
           <div><span>Annual demand offset</span><strong>{selectedDemandOffset.toFixed(1)}%</strong></div>
           <div><span>Specific PV yield</span><strong>{compactNumber(selectedPvYield)} kWh/kW</strong></div>
-          <div><span>Avoided emissions</span><strong>{compactNumber(selectedImpact.avoidedTons)} tons</strong></div>
-          <div><span>Avoided cost</span><strong>{compactCurrency(selectedImpact.avoidedCost)} / yr</strong></div>
+          <div className="impact-emissions"><span>Avoided emissions</span><strong>{compactNumber(selectedImpact.avoidedTons)} tons CO₂e</strong></div>
+          <div className="impact-savings"><span>Avoided cost</span><strong>{compactCurrency(selectedImpact.avoidedCost)} / yr</strong></div>
         </div>
         <p className="impact-note">Planning assumptions: {coverageLevel}% of the technically usable roof is developed with a sloped conceptual array. Usable roof is {Math.round(activeSelected.roofUsableShare * 100)}% of gross top-floor area after preliminary allowances for {activeSelected.roofConstraint.toLowerCase()}. Avoided value uses ${electricityRate.toFixed(2)}/kWh and {emissionsFactor.toFixed(2)} lb CO₂e/kWh; project costs are excluded.</p>
 
