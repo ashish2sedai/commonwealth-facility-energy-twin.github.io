@@ -43,16 +43,27 @@ button:hover { transform: translateY(-1px); border-color: rgba(189,220,235,.3); 
 .button-link:hover { transform: translateY(-1px); background: #7bf0c0; }
 .secondary-button { color: #d7e6ec; }
 .metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 11px; margin-bottom: 11px; }
-.metric-card { position: relative; overflow: hidden; border: 1px solid var(--border); border-radius: 16px; background: linear-gradient(145deg,rgba(255,255,255,.052),rgba(255,255,255,.016)); padding: 15px 17px; }
-.metric-card::after { position: absolute; right: -34px; top: -46px; width: 108px; height: 108px; border-radius: 50%; background: rgba(95,225,167,.09); content: ""; }
+.metric-card { position: relative; min-height: 118px; overflow: hidden; border: 1px solid var(--border); border-radius: 18px; background: radial-gradient(circle at 88% 18%,rgba(95,225,167,.12),transparent 37%),linear-gradient(145deg,rgba(255,255,255,.058),rgba(255,255,255,.014)); padding: 17px 72px 17px 18px; box-shadow: inset 0 1px 0 rgba(255,255,255,.045),0 16px 34px rgba(0,0,0,.12); }
+.metric-card::after { position: absolute; right: -42px; bottom: -70px; width: 142px; height: 142px; border: 1px solid rgba(95,225,167,.12); border-radius: 50%; background: transparent; content: ""; }
 .load-card::after { background: rgba(255,173,115,.09); }
 .solar-card::after { background: rgba(95,225,167,.11); }
 .emissions-card::after { background: rgba(95,225,167,.13); }
 .savings-card::after { background: rgba(232,189,98,.13); }
-.metric-card > span { display: block; color: var(--muted); font-size: 12px; }
+.metric-card > .metric-label { display: block; color: #9db3be; font-size: 12px; font-weight: 630; letter-spacing: .015em; }
 .metric-card strong { display: block; margin: 2px 0; font-size: clamp(23px,3vw,32px); font-weight: 590; letter-spacing: -.04em; }
 .metric-card small { font-size: 13px; font-weight: 520; letter-spacing: 0; }
 .metric-card em { color: var(--muted); font-size: 11px; font-style: normal; }
+.metric-glyph { position: absolute; top: 15px; right: 15px; z-index: 2; display: grid; width: 46px; height: 46px; place-items: center; border: 1px solid rgba(95,225,167,.24); border-radius: 14px; background: linear-gradient(145deg,rgba(95,225,167,.16),rgba(95,225,167,.045)); color: var(--solar); box-shadow: inset 0 1px 0 rgba(255,255,255,.09),0 9px 24px rgba(0,0,0,.2); }
+.metric-glyph svg { width: 29px; height: 29px; overflow: visible; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.metric-glyph svg text { fill: currentColor; stroke: none; font: 700 7px/1 system-ui,sans-serif; letter-spacing: -.03em; }
+.metric-glyph-demand { border-color: rgba(255,173,115,.25); background: linear-gradient(145deg,rgba(255,173,115,.18),rgba(255,173,115,.045)); color: var(--load); }
+.metric-glyph-emissions { color: #77edb6; }
+.metric-glyph-savings { border-color: rgba(232,189,98,.27); background: linear-gradient(145deg,rgba(232,189,98,.19),rgba(232,189,98,.045)); color: var(--amber); }
+.metric-accent { position: absolute; right: 73px; bottom: 17px; left: 18px; display: block; height: 2px; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.055); }
+.metric-accent::after { display: block; width: 62%; height: 100%; border-radius: inherit; background: linear-gradient(90deg,var(--solar),transparent); content: ""; }
+.load-card .metric-accent::after { width: 74%; background: linear-gradient(90deg,var(--load),transparent); }
+.emissions-card .metric-accent::after { width: 84%; }
+.savings-card .metric-accent::after { width: 92%; background: linear-gradient(90deg,var(--amber),transparent); }
 .control-bar { display: grid; grid-template-columns: minmax(190px,.82fr) minmax(220px,1fr) minmax(215px,.9fr) minmax(340px,1.45fr); align-items: end; gap: 11px; margin-bottom: 11px; border: 1px solid var(--border); border-radius: 16px; background: rgba(11,25,38,.74); padding: 12px; }
 .control-bar label { display: grid; gap: 5px; }
 .control-bar label > span,.hour-control label span { color: var(--muted); font-size: 11px; }
@@ -186,6 +197,10 @@ input[type="range"] { padding: 0; accent-color: var(--solar); }
 .model-data-overlay { position: absolute; z-index: 5; right: 10px; bottom: 10px; left: 10px; border: 1px solid rgba(153,213,225,.18); border-radius: 13px; background: linear-gradient(105deg,rgba(2,12,19,.91),rgba(7,27,38,.86)); padding: 8px 10px 7px; box-shadow: 0 12px 32px rgba(0,0,0,.28); backdrop-filter: blur(9px); pointer-events: none; }
 .model-data-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; color: #8ea7b4; font-size: 7px; letter-spacing: .08em; }.model-data-head > span { color: var(--solar); font-weight: 760; }.model-data-head strong { color: #cad9df; font-size: 8px; font-weight: 580; letter-spacing: 0; }
 .model-data-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 4px; }.model-data-grid div { min-width: 0; border-left: 1px solid rgba(145,202,214,.13); padding-left: 6px; }.model-data-grid div:nth-child(3n+1) { border-left: 0; padding-left: 0; }.model-data-grid span { display: block; overflow: hidden; color: #75909e; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }.model-data-grid strong { display: block; margin-top: 1px; overflow: hidden; color: #eef7f4; font-size: 11px; font-weight: 660; text-overflow: ellipsis; white-space: nowrap; }.model-data-grid small { color: #8ba2ad; font-size: 7px; font-weight: 520; }
+.model-data-grid .model-kpi-emissions,.model-data-grid .model-kpi-savings { position: relative; border-radius: 6px; background: rgba(95,225,167,.055); padding-top: 3px; padding-bottom: 3px; }
+.model-data-grid .model-kpi-emissions::after,.model-data-grid .model-kpi-savings::after { position: absolute; top: 4px; right: 4px; color: var(--solar); font-size: 7px; font-weight: 760; content: "CO₂"; }
+.model-data-grid .model-kpi-savings { background: rgba(232,189,98,.055); }
+.model-data-grid .model-kpi-savings::after { color: var(--amber); font-size: 11px; content: "$"; }
 .model-data-overlay > p { margin: 6px 0 0; border-top: 1px solid rgba(145,202,214,.12); padding-top: 5px; color: #7893a0; font-size: 7px; text-align: right; }
 .model-fallback { position: absolute; inset: 0; display: grid; place-items: center; background: radial-gradient(circle at 45% 35%,rgba(55,137,142,.25),transparent 44%); }
 .rooftop-fallback { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; overflow: hidden; background: radial-gradient(circle at 50% 12%,rgba(67,145,155,.2),transparent 44%),linear-gradient(#0a1c29,#07131f); perspective: 900px; }
@@ -216,6 +231,10 @@ input[type="range"] { padding: 0; accent-color: var(--solar); }
 .architecture-source a { color: #c9b474; text-underline-offset: 2px; }
 .impact-summary { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; margin-bottom: 7px; }
 .impact-summary div { border: 1px solid rgba(95,225,167,.16); border-radius: 10px; background: linear-gradient(145deg,rgba(95,225,167,.075),rgba(255,255,255,.018)); padding: 9px; }
+.impact-summary .impact-emissions,.impact-summary .impact-savings { position: relative; overflow: hidden; padding-right: 40px; }
+.impact-summary .impact-emissions::after,.impact-summary .impact-savings::after { position: absolute; top: 10px; right: 11px; display: grid; width: 25px; height: 25px; place-items: center; border: 1px solid rgba(95,225,167,.2); border-radius: 9px; background: rgba(95,225,167,.09); color: var(--solar); font-size: 8px; font-weight: 760; content: "CO₂"; }
+.impact-summary .impact-savings { border-color: rgba(232,189,98,.18); background: linear-gradient(145deg,rgba(232,189,98,.08),rgba(255,255,255,.018)); }
+.impact-summary .impact-savings::after { border-color: rgba(232,189,98,.22); background: rgba(232,189,98,.1); color: var(--amber); font-size: 14px; content: "$"; }
 .impact-summary span { display: block; color: var(--muted); font-size: 9px; }
 .impact-summary strong { display: block; margin-top: 2px; color: #dff8ed; font-size: 13px; font-weight: 640; }
 .impact-note { margin: 0 0 12px; color: #708998; font-size: 8.5px; line-height: 1.45; }
