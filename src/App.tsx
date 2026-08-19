@@ -673,8 +673,8 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
       const [roofWidth, roofDepth, roofX, roofZ] = topParts[0];
       tourCenterX = roofX;
       tourCenterZ = roofZ;
-      tourWidth = roofWidth * 0.68;
-      tourDepth = roofDepth * 0.62;
+      tourWidth = roofWidth * 0.96;
+      tourDepth = roofDepth * 0.94;
       tourRoofY = roofY + 0.1;
       if (["gable", "hip"].includes(profile.roof)) {
         tourCenterX = roofX + roofWidth * 0.28;
@@ -700,8 +700,8 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
       }
       if (facility.id === "DGS-702") {
         // The current aerial roof reads as three broad, connected low-slope
-        // zones with no raised central rooftop block. Keep the full U/V roof
-        // available for the planning array while preserving safety margins.
+        // zones with no raised central rooftop block. At 100%, the three fields
+        // extend almost edge-to-edge so the full usable surface reads as covered.
         tourCenterX = 0;
         tourCenterZ = depth * 0.02;
         tourWidth = width * 0.9;
@@ -710,10 +710,29 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
         customRoofFields = topParts.map(([partWidth, partDepth, partX, partZ]) => ({
           x: partX,
           z: partZ,
-          width: partWidth * 0.78,
-          depth: partDepth * 0.72,
+          width: partWidth * 0.98,
+          depth: partDepth * 0.96,
           y: roofY + 0.18,
         }));
+      } else if (profile.roof === "flat" && topParts.length > 1) {
+        // Complex flat roofs use every top-floor mass instead of placing the
+        // entire array on only the first wing.
+        customRoofFields = topParts.map(([partWidth, partDepth, partX, partZ]) => ({
+          x: partX,
+          z: partZ,
+          width: partWidth * 0.96,
+          depth: partDepth * 0.94,
+          y: roofY + 0.18,
+        }));
+        const fieldMinX = Math.min(...customRoofFields.map((field) => field.x - field.width / 2));
+        const fieldMaxX = Math.max(...customRoofFields.map((field) => field.x + field.width / 2));
+        const fieldMinZ = Math.min(...customRoofFields.map((field) => field.z - field.depth / 2));
+        const fieldMaxZ = Math.max(...customRoofFields.map((field) => field.z + field.depth / 2));
+        tourCenterX = (fieldMinX + fieldMaxX) / 2;
+        tourCenterZ = (fieldMinZ + fieldMaxZ) / 2;
+        tourWidth = fieldMaxX - fieldMinX;
+        tourDepth = fieldMaxZ - fieldMinZ;
+        tourRoofY = roofY + 0.1;
       }
       if (["gable", "hip", "mansard"].includes(profile.roof)) {
         topParts.forEach(([partWidth, partDepth, partX, partZ]) => {
@@ -800,9 +819,8 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
         addBox([width * 0.62, 0.16, 0.48], [0, Math.min(1.65, buildingHeight * 0.82), porticoZ], new THREE.MeshStandardMaterial({ color: 0xeee9dc, roughness: 0.58 }));
       }
 
-      // Individual modules make the 25/50/75/100% scenario legible. The
-      // Washington roof uses a compact 12-module bank; other facilities use a
-      // 16-module field.
+      // Individual modules make the 25/50/75/100% scenario legible. At 100%
+      // the active fields fill the complete usable roof geometry.
       const pitched = ["gable", "hip"].includes(profile.roof);
       const pitchRise = profile.roof === "hip" ? 0.42 : 0.52;
       const pitchAngle = pitched ? -Math.atan2(pitchRise, roofWidth / 2) : 0;
@@ -826,52 +844,36 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
           panelMaterials.push(material);
           panelModules.push(pvModule);
       };
-      if (facility.id === "DGS-702") {
-        // Fill all three connected Washington Building roof zones at 100%.
-        // Modules are added round-robin across the center bar and both wings,
-        // so every coverage step remains balanced rather than filling one side
-        // before the others.
-        const fieldLayouts = customRoofFields.map((arrayField, fieldIndex) => {
-          const pvColumns = fieldIndex === 0 ? 5 : 2;
-          const pvRows = fieldIndex === 0 ? 2 : 5;
-          const arrayWidth = arrayField.width * 0.95;
-          const arrayDepth = arrayField.depth * 0.93;
-          const panelWidth = arrayWidth / pvColumns * 0.88;
-          const panelDepth = arrayDepth / pvRows * 0.84;
-          return Array.from({ length: pvRows * pvColumns }, (_, slot) => {
-            const row = Math.floor(slot / pvColumns);
-            const column = slot % pvColumns;
-            return {
-              x: arrayField.x - arrayWidth * 0.5 + arrayWidth * (column + 0.5) / pvColumns,
-              z: arrayField.z - arrayDepth * 0.5 + arrayDepth * (row + 0.5) / pvRows,
-              y: arrayField.y,
-              width: panelWidth,
-              depth: panelDepth,
-            };
-          });
+      const activeRoofFields = customRoofFields.length
+        ? customRoofFields
+        : [{ x: tourCenterX, z: tourCenterZ, width: tourWidth, depth: tourDepth, y: tourRoofY }];
+      const fieldLayouts = activeRoofFields.map((arrayField, fieldIndex) => {
+        const isWashington = facility.id === "DGS-702";
+        const isSingleField = activeRoofFields.length === 1;
+        const landscape = arrayField.width >= arrayField.depth;
+        const pvColumns = isWashington ? (fieldIndex === 0 ? 5 : 2) : isSingleField ? 4 : landscape ? 4 : 3;
+        const pvRows = isWashington ? (fieldIndex === 0 ? 2 : 5) : isSingleField ? 4 : landscape ? 3 : 4;
+        const arrayWidth = arrayField.width * 0.995;
+        const arrayDepth = arrayField.depth * 0.99;
+        const panelWidth = Math.max(0.14, arrayWidth / pvColumns * 0.98);
+        const panelDepth = Math.max(0.2, arrayDepth / pvRows * 0.98);
+        return Array.from({ length: pvRows * pvColumns }, (_, slot) => {
+          const row = Math.floor(slot / pvColumns);
+          const column = slot % pvColumns;
+          const panelX = arrayField.x - arrayWidth * 0.5 + arrayWidth * (column + 0.5) / pvColumns;
+          const panelZ = arrayField.z - arrayDepth * 0.5 + arrayDepth * (row + 0.5) / pvRows;
+          const roofSurfaceY = pitched
+            ? roofY + 0.07 + pitchRise * Math.max(0, 1 - Math.abs(panelX - roofX) / (roofWidth / 2))
+            : arrayField.y;
+          return { x: panelX, z: panelZ, y: roofSurfaceY, width: panelWidth, depth: panelDepth };
         });
-        const longestField = Math.max(...fieldLayouts.map((layout) => layout.length));
-        for (let slot = 0; slot < longestField; slot += 1) {
-          fieldLayouts.forEach((layout) => {
-            const panel = layout[slot];
-            if (panel) addPvModule(panel.x, panel.z, panel.y, panel.width, panel.depth, 0, true);
-          });
-        }
-      } else {
-        const pvColumns = 4;
-        const pvRows = 4;
-        const panelWidth = Math.max(0.16, tourWidth / pvColumns * 0.9);
-        const panelDepth = Math.max(0.24, tourDepth / pvRows * 0.84);
-        for (let row = 0; row < pvRows; row += 1) {
-          for (let column = 0; column < pvColumns; column += 1) {
-            const panelX = tourCenterX - tourWidth * 0.375 + column * tourWidth * 0.25;
-            const panelZ = tourCenterZ - tourDepth * 0.375 + row * tourDepth * 0.25;
-            const roofSurfaceY = pitched
-              ? roofY + 0.07 + pitchRise * Math.max(0, 1 - Math.abs(panelX - roofX) / (roofWidth / 2))
-              : tourRoofY;
-            addPvModule(panelX, panelZ, roofSurfaceY, panelWidth, panelDepth, pitchAngle, !pitched);
-          }
-        }
+      });
+      const longestField = Math.max(...fieldLayouts.map((layout) => layout.length));
+      for (let slot = 0; slot < longestField; slot += 1) {
+        fieldLayouts.forEach((layout) => {
+          const panel = layout[slot];
+          if (panel) addPvModule(panel.x, panel.z, panel.y, panel.width, panel.depth, pitchAngle, !pitched);
+        });
       }
     }
 
