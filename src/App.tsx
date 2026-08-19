@@ -1208,7 +1208,8 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
   const demandOffset = annualLoadKwh ? impact.annualOffsetKwh / annualLoadKwh * 100 : 0;
   const pvYield = impact.activePvCapacity ? impact.annualPvKwh / impact.activePvCapacity : 0;
   const viewLabel = viewMode === "exterior" ? "Source-referenced exterior" : "Satellite-referenced rooftop + proposed PV";
-  return <div className="facility-model" ref={mountRef} aria-label={`Interactive source-referenced 3D model of ${facility.name}`}>
+  return <div className="facility-model-shell">
+    <div className="facility-model" ref={mountRef} aria-label={`Interactive source-referenced 3D model of ${facility.name}`}>
     {fallback && viewMode !== "exterior" && <div className={`rooftop-fallback rooftop-${viewMode}`} role="img" aria-label={viewLabel}>
       <div className="fallback-roof">
         <span>ROOFTOP PV</span>
@@ -1247,13 +1248,14 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
       <button type="button" className={viewMode === "exterior" ? "is-active" : ""} aria-pressed={viewMode === "exterior"} onClick={() => selectView("exterior")}>Exterior</button>
       <button type="button" className={viewMode === "rooftop" ? "is-active" : ""} aria-pressed={viewMode === "rooftop"} onClick={() => selectView("rooftop")}>Rooftop</button>
     </div>
-    <div className="model-view-status" aria-live="polite"><span />{viewLabel}</div>
-    <div className="model-data-overlay" aria-label="Major facility data shown in the 3D view">
-      <div className="model-data-head"><span>FACILITY ENERGY TWIN</span><strong>{formatDay(dayOfYear)} · {formatHour(hour)}</strong></div>
+      <div className="model-view-status" aria-live="polite"><span />{viewLabel}</div>
+    </div>
+    <section className="model-data-panel" aria-label="Live facility energy performance below the 3D view">
+      <div className="model-data-head"><div><span>LIVE PERFORMANCE</span><strong>Facility energy twin</strong></div><time>{formatDay(dayOfYear)} · {formatHour(hour)}</time></div>
       <div className="model-data-grid">
-        <div><span>Demand</span><strong>{energy.load} <small>kW</small></strong></div>
-        <div><span>PV now</span><strong>{energy.pv} <small>kW</small></strong></div>
-        <div><span>{energy.grid >= 0 ? "Grid import" : "Grid export"}</span><strong>{Math.abs(energy.grid)} <small>kW</small></strong></div>
+        <div className="model-kpi-live"><span>Demand now</span><strong>{energy.load} <small>kW</small></strong></div>
+        <div className="model-kpi-live"><span>PV now</span><strong>{energy.pv} <small>kW</small></strong></div>
+        <div className="model-kpi-live"><span>{energy.grid >= 0 ? "Grid import" : "Grid export"}</span><strong>{Math.abs(energy.grid)} <small>kW</small></strong></div>
         <div><span>PV capacity</span><strong>{compactNumber(impact.activePvCapacity)} <small>kW</small></strong></div>
         <div><span>Annual PV</span><strong>{compactNumber(impact.annualPvKwh / 1000)} <small>MWh</small></strong></div>
         <div><span>Demand offset</span><strong>{demandOffset.toFixed(1)}<small>% /yr</small></strong></div>
@@ -1261,8 +1263,11 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
         <div className="model-kpi-savings"><span>Cost avoided</span><strong>{compactCurrency(impact.avoidedCost)} <small>/yr</small></strong></div>
         <div><span>PV yield</span><strong>{compactNumber(pvYield)} <small>kWh/kW</small></strong></div>
       </div>
-      <p>{coverage}% of usable roof · {formatNumber(Math.round(impact.selectedRoofArea))} sq. ft. · {facility.id === "DGS-702" ? "three connected V-plan roof zones" : "sloped planning array"}</p>
-    </div>
+      <div className="model-data-footer">
+        <div><span>Rooftop scenario</span><div className="model-coverage-track"><i style={{ width:`${coverage}%` }} /></div><strong>{coverage}%</strong></div>
+        <p>{formatNumber(Math.round(impact.selectedRoofArea))} sq. ft. developed · {facility.id === "DGS-702" ? "three connected V-plan roof zones" : "sloped planning array"}</p>
+      </div>
+    </section>
   </div>;
 }
 
