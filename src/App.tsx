@@ -1345,26 +1345,6 @@ export default function Home() {
             <span><small>Daily demand offset</small><strong>{dailyDemandOffset.toFixed(0)}%</strong></span>
           </div>
         </article>
-      </div>
-
-      <aside className="detail-panel">
-        <FacilityModel key={activeSelected.id} facility={activeSelected} hour={hour} coverage={coverageLevel} dayOfYear={dayOfYear} energy={selectedEnergy} impact={selectedImpact} />
-        <div className="facility-heading"><div><p className="eyebrow">Selected real facility</p><h2>{activeSelected.name}</h2></div><span>{activeSelected.id}</span></div>
-        <p className="agency-name"><strong>{activeSelected.address}, {activeSelected.locality}, VA</strong><span>{activeSelected.agency.name}</span></p>
-        <p className="architecture-source"><strong>Model basis:</strong> building-specific massing interpreted from satellite imagery, published exterior references, documented floor count, roof form and façade rhythm. Generic rooftop boxes are not used; penthouses and roof structures appear only where supported by the building profile. {activeSelected.id === "DGS-738" ? <>The Capitol additionally follows <a href="https://www.google.com/maps/place/Virginia+State+Capitol/" target="_blank" rel="noreferrer">Street View</a> and the <a href="https://www.loc.gov/pictures/item/va1498/" target="_blank" rel="noreferrer">HABS measured record</a>.</> : activeSelected.id === "DGS-702" ? <>The Washington Building exterior follows its official <a href="https://www.dhr.virginia.gov/VLR_to_transfer/PDFNoms/127-6518_Washington_Building_2010_NRHP_final.pdf" target="_blank" rel="noreferrer">National Register documentation</a>: twelve-story V/U plan, tapered massing, four historically rounded outer corners, two straight Bank Street entrance joints and a deep cornice. The rooftop planning view uses the broad open low-slope zones visible in the current aerial reference.</> : <>Exterior geometry is a visual reference twin; exact survey geometry requires the facility’s BIM/CAD or LiDAR scan.</>}</p>
-        <div className="impact-summary" aria-label={`${coverageLevel}% rooftop PV coverage planning impact`}>
-          <div><span>Gross top-floor roof</span><strong>{formatNumber(Math.round(selectedImpact.grossRoofArea))} sq. ft.</strong></div>
-          <div><span>Technically usable roof</span><strong>{formatNumber(Math.round(selectedImpact.technicallyUsableRoofArea))} sq. ft.</strong></div>
-          <div><span>Rooftop used for PV</span><strong>{formatNumber(Math.round(selectedImpact.selectedRoofArea))} sq. ft.</strong></div>
-          <div><span>Installed PV capacity</span><strong>{compactNumber(selectedImpact.activePvCapacity)} kW</strong></div>
-          <div><span>Annual PV generation</span><strong>{compactNumber(selectedImpact.annualPvKwh / 1000)} MWh</strong></div>
-          <div><span>PV energy used on site</span><strong>{selectedSelfConsumption.toFixed(1)}%</strong></div>
-          <div><span>Annual demand offset</span><strong>{selectedDemandOffset.toFixed(1)}%</strong></div>
-          <div><span>Specific PV yield</span><strong>{compactNumber(selectedPvYield)} kWh/kW</strong></div>
-          <div><span>Avoided emissions</span><strong>{compactNumber(selectedImpact.avoidedTons)} tons</strong></div>
-          <div><span>Avoided cost</span><strong>{compactCurrency(selectedImpact.avoidedCost)} / yr</strong></div>
-        </div>
-        <p className="impact-note">Planning assumptions: {coverageLevel}% of the technically usable roof is developed with a sloped conceptual array. Usable roof is {Math.round(activeSelected.roofUsableShare * 100)}% of gross top-floor area after preliminary allowances for {activeSelected.roofConstraint.toLowerCase()}. Avoided value uses ${electricityRate.toFixed(2)}/kWh and {emissionsFactor.toFixed(2)} lb CO₂e/kWh; project costs are excluded.</p>
         <section className="facility-scenario-studio" aria-label="Rooftop coverage scenario studio">
           <div className="scenario-studio-heading">
             <div><p className="eyebrow">Scenario studio</p><h3>Compare rooftop buildout</h3></div>
@@ -1395,6 +1375,27 @@ export default function Home() {
             <div><span>Annual demand offset</span><strong>{selectedDemandOffset.toFixed(1)}%</strong><small>Modeled full-year facility demand</small></div>
           </div>
         </section>
+      </div>
+
+      <aside className="detail-panel">
+        <FacilityModel key={activeSelected.id} facility={activeSelected} hour={hour} coverage={coverageLevel} dayOfYear={dayOfYear} energy={selectedEnergy} impact={selectedImpact} />
+        <div className="facility-heading"><div><p className="eyebrow">Selected real facility</p><h2>{activeSelected.name}</h2></div><span>{activeSelected.id}</span></div>
+        <p className="agency-name"><strong>{activeSelected.address}, {activeSelected.locality}, VA</strong><span>{activeSelected.agency.name}</span></p>
+        <p className="architecture-source"><strong>Model basis:</strong> building-specific massing interpreted from satellite imagery, published exterior references, documented floor count, roof form and façade rhythm. Generic rooftop boxes are not used; penthouses and roof structures appear only where supported by the building profile. {activeSelected.id === "DGS-738" ? <>The Capitol additionally follows <a href="https://www.google.com/maps/place/Virginia+State+Capitol/" target="_blank" rel="noreferrer">Street View</a> and the <a href="https://www.loc.gov/pictures/item/va1498/" target="_blank" rel="noreferrer">HABS measured record</a>.</> : activeSelected.id === "DGS-702" ? <>The Washington Building exterior follows its official <a href="https://www.dhr.virginia.gov/VLR_to_transfer/PDFNoms/127-6518_Washington_Building_2010_NRHP_final.pdf" target="_blank" rel="noreferrer">National Register documentation</a>: twelve-story V/U plan, tapered massing, four historically rounded outer corners, two straight Bank Street entrance joints and a deep cornice. The rooftop planning view uses the broad open low-slope zones visible in the current aerial reference.</> : <>Exterior geometry is a visual reference twin; exact survey geometry requires the facility’s BIM/CAD or LiDAR scan.</>}</p>
+        <div className="impact-summary" aria-label={`${coverageLevel}% rooftop PV coverage planning impact`}>
+          <div><span>Gross top-floor roof</span><strong>{formatNumber(Math.round(selectedImpact.grossRoofArea))} sq. ft.</strong></div>
+          <div><span>Technically usable roof</span><strong>{formatNumber(Math.round(selectedImpact.technicallyUsableRoofArea))} sq. ft.</strong></div>
+          <div><span>Rooftop used for PV</span><strong>{formatNumber(Math.round(selectedImpact.selectedRoofArea))} sq. ft.</strong></div>
+          <div><span>Installed PV capacity</span><strong>{compactNumber(selectedImpact.activePvCapacity)} kW</strong></div>
+          <div><span>Annual PV generation</span><strong>{compactNumber(selectedImpact.annualPvKwh / 1000)} MWh</strong></div>
+          <div><span>PV energy used on site</span><strong>{selectedSelfConsumption.toFixed(1)}%</strong></div>
+          <div><span>Annual demand offset</span><strong>{selectedDemandOffset.toFixed(1)}%</strong></div>
+          <div><span>Specific PV yield</span><strong>{compactNumber(selectedPvYield)} kWh/kW</strong></div>
+          <div><span>Avoided emissions</span><strong>{compactNumber(selectedImpact.avoidedTons)} tons</strong></div>
+          <div><span>Avoided cost</span><strong>{compactCurrency(selectedImpact.avoidedCost)} / yr</strong></div>
+        </div>
+        <p className="impact-note">Planning assumptions: {coverageLevel}% of the technically usable roof is developed with a sloped conceptual array. Usable roof is {Math.round(activeSelected.roofUsableShare * 100)}% of gross top-floor area after preliminary allowances for {activeSelected.roofConstraint.toLowerCase()}. Avoided value uses ${electricityRate.toFixed(2)}/kWh and {emissionsFactor.toFixed(2)} lb CO₂e/kWh; project costs are excluded.</p>
+
         <p className="section-kicker"><span>Simulated energy</span>{formatDay(dayOfYear)} · {formatHour(hour)}</p>
         <div className="selected-energy">
           <div><span>Load</span><strong>{selectedEnergy.load} kW</strong></div>
