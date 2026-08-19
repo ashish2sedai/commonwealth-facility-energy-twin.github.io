@@ -324,7 +324,8 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
     controls.target.set(0, isCapitol ? 1.45 : buildingHeight * 0.45, 0);
     controls.addEventListener("start", () => { controls.autoRotate = false; });
 
-    scene.add(new THREE.HemisphereLight(0xc5e9ff, 0x152334, 2.1));
+    const skyLight = new THREE.HemisphereLight(0xc5e9ff, 0x152334, 2.1);
+    scene.add(skyLight);
     const sun = new THREE.DirectionalLight(0xffefc5, 3.4);
     sun.position.set(-8, 13, 9);
     sun.castShadow = true;
@@ -907,6 +908,17 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
     let previousViewMode: TwinViewMode = "exterior";
     const animate = () => {
       const energy = energyAt(facility, hourRef.current, coverageRef.current, dayRef.current);
+      const solarPhase = Math.PI * ((hourRef.current - 6) / 12);
+      const daylight = Math.max(0, Math.sin(solarPhase));
+      const seasonalLift = 0.82 + 0.18 * Math.sin((dayRef.current - 80) / 365 * Math.PI * 2);
+      sun.position.set(
+        Math.cos(solarPhase) * 14,
+        1.6 + daylight * 13.5 * seasonalLift,
+        Math.sin(solarPhase) * 10,
+      );
+      sun.intensity = 0.35 + daylight * 3.1;
+      skyLight.intensity = 0.72 + daylight * 1.38;
+      accent.intensity = 5 + daylight * 11;
       const loadIntensity = Math.min(energy.load / facility.peakLoad, 1);
       floorMaterials.forEach((material, index) => {
         material.color.copy(floorBaseColors[index] ?? new THREE.Color(0x8aa0a8));
@@ -1353,6 +1365,36 @@ export default function Home() {
           <div><span>Avoided cost</span><strong>{compactCurrency(selectedImpact.avoidedCost)} / yr</strong></div>
         </div>
         <p className="impact-note">Planning assumptions: {coverageLevel}% of the technically usable roof is developed with a sloped conceptual array. Usable roof is {Math.round(activeSelected.roofUsableShare * 100)}% of gross top-floor area after preliminary allowances for {activeSelected.roofConstraint.toLowerCase()}. Avoided value uses ${electricityRate.toFixed(2)}/kWh and {emissionsFactor.toFixed(2)} lb CO₂e/kWh; project costs are excluded.</p>
+        <section className="facility-scenario-studio" aria-label="Rooftop coverage scenario studio">
+          <div className="scenario-studio-heading">
+            <div><p className="eyebrow">Scenario studio</p><h3>Compare rooftop buildout</h3></div>
+            <span>Select a level to update the digital twin</span>
+          </div>
+          <div className="scenario-studio-grid">
+            {coverageScenarios.map((scenario) => <button
+              type="button"
+              key={scenario.level}
+              className={scenario.level === coverageLevel ? "is-active" : ""}
+              onClick={() => setCoverageLevel(scenario.level)}
+              aria-pressed={scenario.level === coverageLevel}
+              aria-label={`Use ${scenario.level}% of the technically usable roof for rooftop PV`}
+            >
+              <span className="scenario-studio-level"><strong>{scenario.level}%</strong><span>{formatNumber(Math.round(scenario.impact.selectedRoofArea))} sq. ft.</span></span>
+              <span className="scenario-studio-track"><i style={{ width:`${scenario.level}%` }} /></span>
+              <span className="scenario-studio-values">
+                <span><small>PV capacity</small><b>{compactNumber(scenario.impact.activePvCapacity)} kW</b></span>
+                <span><small>Annual output</small><b>{compactNumber(scenario.impact.annualPvKwh / 1000)} MWh</b></span>
+                <span><small>Avoided cost</small><b>{compactCurrency(scenario.impact.avoidedCost)}/yr</b></span>
+                <span><small>Avoided CO₂e</small><b>{compactNumber(scenario.impact.avoidedTons)} t/yr</b></span>
+              </span>
+            </button>)}
+          </div>
+          <div className="planning-horizon" aria-label="Long-term planning outlook">
+            <div><span>25-year gross avoided value</span><strong>{compactCurrency(selectedImpact.avoidedCost * 25)}</strong><small>Flat electricity value; project costs excluded</small></div>
+            <div><span>25-year avoided emissions</span><strong>{compactNumber(selectedImpact.avoidedTons * 25)} tons</strong><small>Constant planning emissions factor</small></div>
+            <div><span>Annual demand offset</span><strong>{selectedDemandOffset.toFixed(1)}%</strong><small>Modeled full-year facility demand</small></div>
+          </div>
+        </section>
         <p className="section-kicker"><span>Simulated energy</span>{formatDay(dayOfYear)} · {formatHour(hour)}</p>
         <div className="selected-energy">
           <div><span>Load</span><strong>{selectedEnergy.load} kW</strong></div>
