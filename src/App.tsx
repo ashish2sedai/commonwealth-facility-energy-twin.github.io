@@ -1220,7 +1220,7 @@ export default function Home() {
   return <main className="app-shell">
     <header className="topbar">
       <div><p className="eyebrow">Commonwealth Facility Energy Twin</p>
-        <h1>State Facility Portfolio at Richmond</h1><p className="subtitle">Compare building-specific exterior and rooftop digital twins, inspect sloped PV layouts, and evaluate a full year of energy, cost and emissions outcomes.</p></div>
+        <h1>State Facility Portfolio</h1><p className="subtitle">Compare building-specific exterior and rooftop digital twins, inspect sloped PV layouts, and evaluate a full year of energy, cost and emissions outcomes.</p></div>
     </header>
 
     <section className="metrics" aria-label="Portfolio energy summary">
