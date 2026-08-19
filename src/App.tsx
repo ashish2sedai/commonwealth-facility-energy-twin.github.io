@@ -284,14 +284,16 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
     let cleanup = () => {};
 
     const initializeModel = async () => {
-    const [THREE, controlsModule, roundedBoxModule] = await Promise.all([
+    const [THREE, controlsModule, roundedBoxModule, environmentModule] = await Promise.all([
       import("three"),
       import("three/examples/jsm/controls/OrbitControls.js"),
       import("three/examples/jsm/geometries/RoundedBoxGeometry.js"),
+      import("three/examples/jsm/environments/RoomEnvironment.js"),
     ]);
     if (disposed) return;
     const { OrbitControls } = controlsModule;
     const { RoundedBoxGeometry } = roundedBoxModule;
+    const { RoomEnvironment } = environmentModule;
     const scene = new THREE.Scene();
     scene.fog = new THREE.FogExp2(0x07131f, 0.035);
     const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
@@ -302,16 +304,21 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
     camera.position.set(isCapitol ? 13.5 : 12, isCapitol ? 7.2 : 7 + buildingHeight * 0.28, isCapitol ? 15.5 : 14);
     let renderer: InstanceType<typeof THREE.WebGLRenderer>;
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
     } catch {
       if (!disposed) setFallback(true);
       return;
     }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = 1.14;
+    renderer.setClearColor(0x07131f, 0);
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const environmentTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environment = environmentTexture;
     mount.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -319,6 +326,8 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
     controls.enablePan = false;
     controls.autoRotate = true;
     controls.autoRotateSpeed = 0.32;
+    controls.minPolarAngle = 0.12;
+    controls.maxPolarAngle = Math.PI * 0.49;
     controls.minDistance = 8;
     controls.maxDistance = 24;
     controls.target.set(0, isCapitol ? 1.45 : buildingHeight * 0.45, 0);
@@ -329,6 +338,15 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
     const sun = new THREE.DirectionalLight(0xffefc5, 3.4);
     sun.position.set(-8, 13, 9);
     sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.near = 0.5;
+    sun.shadow.camera.far = 45;
+    sun.shadow.camera.left = -16;
+    sun.shadow.camera.right = 16;
+    sun.shadow.camera.top = 16;
+    sun.shadow.camera.bottom = -16;
+    sun.shadow.bias = -0.00025;
+    sun.shadow.normalBias = 0.025;
     scene.add(sun);
     const accent = new THREE.PointLight(0x44dba0, 16, 20);
     accent.position.set(5, 7, -5);
@@ -370,6 +388,43 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
       parent.add(mesh);
       return mesh;
     };
+
+    // A restrained urban setting gives every model scale, contact shadows and
+    // a Richmond streetscape reference without pretending to reproduce parcel
+    // survey geometry.
+    const siteContext = new THREE.Group();
+    scene.add(siteContext);
+    const sidewalkMaterial = new THREE.MeshStandardMaterial({ color: 0x778086, roughness: 0.96, metalness: 0.02 });
+    const streetMaterial = new THREE.MeshStandardMaterial({ color: 0x18242c, roughness: 0.93 });
+    const markingMaterial = new THREE.MeshStandardMaterial({ color: 0xd9cda7, roughness: 0.82, emissive: 0x3c3524, emissiveIntensity: 0.05 });
+    const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x4d3929, roughness: 0.98 });
+    const canopyMaterial = new THREE.MeshStandardMaterial({ color: isCapitol ? 0x2f6a43 : 0x2d5d49, roughness: 0.92 });
+    const siteRing = new THREE.Mesh(new THREE.RingGeometry(6.35, 7.72, 64), sidewalkMaterial);
+    siteRing.rotation.x = -Math.PI / 2;
+    siteRing.position.y = 0.012;
+    siteRing.receiveShadow = true;
+    siteContext.add(siteRing);
+    addBox([1.2, 0.035, 12.2], [-7.18, 0.025, 0], streetMaterial, siteContext);
+    addBox([1.2, 0.035, 12.2], [7.18, 0.025, 0], streetMaterial, siteContext);
+    addBox([12.2, 0.035, 1.2], [0, 0.025, -7.18], streetMaterial, siteContext);
+    addBox([12.2, 0.035, 1.2], [0, 0.025, 7.18], streetMaterial, siteContext);
+    [-7.18, 7.18].forEach((streetX) => addBox([0.035, 0.012, 9.6], [streetX, 0.052, 0], markingMaterial, siteContext));
+    [-7.18, 7.18].forEach((streetZ) => addBox([9.6, 0.012, 0.035], [0, 0.052, streetZ], markingMaterial, siteContext));
+    const treePositions: Array<[number, number, number]> = isCapitol
+      ? [[-5.8,-5.25,0.66],[5.85,-5.05,0.72],[-6.05,4.8,0.8],[6.0,4.65,0.73],[-4.75,5.75,0.64],[4.65,5.7,0.7]]
+      : [[-5.75,-5.2,0.58],[5.8,-5.0,0.62],[-5.95,4.85,0.7],[5.9,4.72,0.65],[-4.6,5.82,0.56],[4.72,5.76,0.6]];
+    treePositions.forEach(([treeX, treeZ, scale]) => {
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.07 * scale, 0.1 * scale, 0.9 * scale, 10), trunkMaterial);
+      trunk.position.set(treeX, 0.45 * scale, treeZ);
+      trunk.castShadow = true;
+      siteContext.add(trunk);
+      const canopy = new THREE.Mesh(new THREE.DodecahedronGeometry(0.72 * scale, 1), canopyMaterial);
+      canopy.position.set(treeX, 1.18 * scale, treeZ);
+      canopy.scale.set(1, 1.12, 1);
+      canopy.castShadow = true;
+      canopy.receiveShadow = true;
+      siteContext.add(canopy);
+    });
 
     if (isCapitol) {
       // Reference reconstruction: 1 scene unit is approximately 20 feet.
@@ -614,6 +669,9 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
           default: return [[width, depth, 0, 0]];
         }
       };
+      const facadeTrimMaterial = new THREE.MeshStandardMaterial({ color: facility.id === "DGS-702" ? 0xd8c8aa : 0xbec6c4, roughness: 0.58, metalness: 0.08 });
+      const facadeShadowMaterial = new THREE.MeshStandardMaterial({ color: 0x17272d, roughness: 0.66, metalness: 0.18 });
+      const plinthMaterial = new THREE.MeshStandardMaterial({ color: facility.id === "DGS-702" ? 0x9f8f75 : 0x748086, roughness: 0.82 });
 
       for (let index = 0; index < facility.floors; index += 1) {
         const isWashington = facility.id === "DGS-702";
@@ -647,28 +705,53 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
               const windowX = partX - partWidth * 0.36 + bay * (partWidth * 0.72 / Math.max(frontBays - 1, 1));
               addBox([frontWindowWidth, windowHeight * 1.28, 0.045], [windowX, floorY, partZ + partDepth / 2 + 0.024], windowMaterial);
               addBox([frontWindowWidth, windowHeight * 1.28, 0.045], [windowX, floorY, partZ - partDepth / 2 - 0.024], windowMaterial);
+              [-1, 1].forEach((side) => {
+                const frameZ = partZ + side * (partDepth / 2 + 0.052);
+                [-1, 1].forEach((vertical) => addBox([frontWindowWidth + 0.055, 0.028, 0.06], [windowX, floorY + vertical * windowHeight * 0.68, frameZ], facadeTrimMaterial));
+              });
             }
             for (let bay = 0; bay < sideBays; bay += 1) {
               const windowZ = partZ - partDepth * 0.34 + bay * (partDepth * 0.68 / Math.max(sideBays - 1, 1));
               addBox([0.045, windowHeight * 1.28, sideWindowWidth], [partX + partWidth / 2 + 0.024, floorY, windowZ], windowMaterial);
               addBox([0.045, windowHeight * 1.28, sideWindowWidth], [partX - partWidth / 2 - 0.024, floorY, windowZ], windowMaterial);
+              [-1, 1].forEach((side) => {
+                const frameX = partX + side * (partWidth / 2 + 0.052);
+                [-1, 1].forEach((vertical) => addBox([0.06, 0.028, sideWindowWidth + 0.055], [frameX, floorY + vertical * windowHeight * 0.68, windowZ], facadeTrimMaterial));
+              });
             }
           } else if (profile.facade === "industrial") {
             addBox([partWidth * 0.54, windowHeight, 0.045], [partX, floorY, partZ + partDepth / 2 + 0.024], windowMaterial);
+            addBox([partWidth * 0.56, 0.04, 0.07], [partX, floorY - windowHeight * 0.6, partZ + partDepth / 2 + 0.052], facadeTrimMaterial);
           } else {
             addBox([partWidth * 0.68, windowHeight, 0.045], [partX, floorY, partZ + partDepth / 2 + 0.024], windowMaterial);
             addBox([partWidth * 0.68, windowHeight, 0.045], [partX, floorY, partZ - partDepth / 2 - 0.024], windowMaterial);
             addBox([0.045, windowHeight, partDepth * 0.64], [partX + partWidth / 2 + 0.024, floorY, partZ], windowMaterial);
             addBox([0.045, windowHeight, partDepth * 0.64], [partX - partWidth / 2 - 0.024, floorY, partZ], windowMaterial);
+            const frontMullions = Math.max(3, Math.min(9, Math.round(partWidth / 0.7)));
+            for (let mullion = 1; mullion < frontMullions; mullion += 1) {
+              const mullionX = partX - partWidth * 0.34 + mullion * (partWidth * 0.68 / frontMullions);
+              addBox([0.025, windowHeight * 1.08, 0.06], [mullionX, floorY, partZ + partDepth / 2 + 0.052], facadeShadowMaterial);
+              addBox([0.025, windowHeight * 1.08, 0.06], [mullionX, floorY, partZ - partDepth / 2 - 0.052], facadeShadowMaterial);
+            }
+            const sideMullions = Math.max(3, Math.min(7, Math.round(partDepth / 0.75)));
+            for (let mullion = 1; mullion < sideMullions; mullion += 1) {
+              const mullionZ = partZ - partDepth * 0.32 + mullion * (partDepth * 0.64 / sideMullions);
+              addBox([0.06, windowHeight * 1.08, 0.025], [partX + partWidth / 2 + 0.052, floorY, mullionZ], facadeShadowMaterial);
+              addBox([0.06, windowHeight * 1.08, 0.025], [partX - partWidth / 2 - 0.052, floorY, mullionZ], facadeShadowMaterial);
+            }
           }
         });
       }
       const roofY = 0.42 + facility.floors * floorPitch;
       const roofMaterial = new THREE.MeshStandardMaterial({ color: 0x8f9998, roughness: 0.62, metalness: 0.12 });
       const topParts = massParts(Math.max(0, facility.floors - 1));
+      massParts(0).forEach(([partWidth, partDepth, partX, partZ]) => {
+        addBox([partWidth + 0.14, 0.16, partDepth + 0.14], [partX, 0.15, partZ], plinthMaterial);
+      });
       topParts.forEach(([partWidth, partDepth, partX, partZ]) => {
         if (facility.id === "DGS-702") addRoundedBox([partWidth + 0.12, 0.12, partDepth + 0.12], [partX, roofY, partZ], roofMaterial, 0.14);
         else addBox([partWidth + 0.12, 0.12, partDepth + 0.12], [partX, roofY, partZ], roofMaterial);
+        if (profile.facade !== "industrial") addBox([partWidth + 0.18, 0.07, partDepth + 0.18], [partX, roofY - 0.08, partZ], facadeTrimMaterial);
       });
 
       const [roofWidth, roofDepth, roofX, roofZ] = topParts[0];
@@ -768,6 +851,17 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
         modelRoot.add(cap);
       }
 
+      if (profile.roof === "flat" && !profile.balustrade && facility.id !== "DGS-702") {
+        const parapetMaterial = new THREE.MeshStandardMaterial({ color: 0xaab2af, roughness: 0.76, metalness: 0.08 });
+        topParts.forEach(([partWidth, partDepth, partX, partZ]) => {
+          const parapetY = roofY + 0.15;
+          addBox([partWidth + 0.14, 0.16, 0.055], [partX, parapetY, partZ - partDepth / 2 - 0.04], parapetMaterial);
+          addBox([partWidth + 0.14, 0.16, 0.055], [partX, parapetY, partZ + partDepth / 2 + 0.04], parapetMaterial);
+          addBox([0.055, 0.16, partDepth + 0.14], [partX - partWidth / 2 - 0.04, parapetY, partZ], parapetMaterial);
+          addBox([0.055, 0.16, partDepth + 0.14], [partX + partWidth / 2 + 0.04, parapetY, partZ], parapetMaterial);
+        });
+      }
+
       if (profile.balustrade) {
         const stone = new THREE.MeshStandardMaterial({ color: 0xe8e2d5, roughness: 0.68 });
         for (let post = 0; post < 11; post += 1) {
@@ -836,9 +930,10 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
           if (useSupports) rack.rotation.x = -rackTilt;
           pvModule.add(rack);
           addBox([panelWidth + 0.04, 0.025, panelDepth + 0.04], [0, -0.018, 0], frameMaterial, rack);
-          const material = new THREE.MeshStandardMaterial({ color: 0x0b5278, emissive: 0x0b7397, emissiveIntensity: 0.2, metalness: 0.68, roughness: 0.17 });
+          const material = new THREE.MeshPhysicalMaterial({ color: 0x0b5278, emissive: 0x0b7397, emissiveIntensity: 0.2, metalness: 0.62, roughness: 0.14, clearcoat: 0.92, clearcoatRoughness: 0.08 });
           addBox([panelWidth, 0.026, panelDepth], [0, 0.008, 0], material, rack);
           [-0.22, 0.22].forEach((cell) => addBox([0.01, 0.009, panelDepth * 0.94], [cell * panelWidth, 0.026, 0], frameMaterial, rack));
+          [-0.36, -0.12, 0.12, 0.36].forEach((cell) => addBox([panelWidth * 0.94, 0.009, 0.01], [0, 0.026, cell * panelDepth], frameMaterial, rack));
           if (useSupports) {
             [-0.34, 0.34].forEach((supportX) => addBox([0.022, 0.12, 0.022], [supportX * panelWidth, -0.05, panelDepth * 0.32], frameMaterial, pvModule));
           }
@@ -894,6 +989,20 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
     });
     roofGuideGroup.visible = false;
 
+    const modelBounds = new THREE.Box3().setFromObject(modelRoot);
+    const modelSphere = modelBounds.getBoundingSphere(new THREE.Sphere());
+    const exteriorTarget = modelSphere.center.clone();
+    exteriorTarget.y = Math.max(0.8, modelBounds.min.y + (modelBounds.max.y - modelBounds.min.y) * 0.46);
+    const exteriorDistance = isCapitol ? 18.8 : Math.max(12.5, Math.min(30, modelSphere.radius * 2.45));
+    const exteriorCameraPosition = new THREE.Vector3(
+      exteriorTarget.x + exteriorDistance * 0.58,
+      exteriorTarget.y + exteriorDistance * 0.38,
+      exteriorTarget.z + exteriorDistance * 0.72,
+    );
+    camera.position.copy(exteriorCameraPosition);
+    controls.target.copy(exteriorTarget);
+    controls.maxDistance = exteriorDistance * 1.7;
+
     const resize = () => {
       const widthValue = Math.max(1, mount.clientWidth);
       const heightValue = Math.max(1, mount.clientHeight);
@@ -941,12 +1050,12 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
       ground.visible = true;
       roofGuideGroup.visible = mode === "rooftop";
       controls.autoRotate = mode === "exterior";
-      controls.minDistance = mode === "exterior" ? 8 : 2.2;
-      controls.maxDistance = mode === "exterior" ? 24 : 18;
+      controls.minDistance = mode === "exterior" ? Math.max(5.5, exteriorDistance * 0.42) : 2.2;
+      controls.maxDistance = mode === "exterior" ? exteriorDistance * 1.7 : 18;
       if (mode !== previousViewMode) {
         if (mode === "exterior") {
-          camera.position.set(isCapitol ? 13.5 : 12, isCapitol ? 7.2 : 7 + buildingHeight * 0.28, isCapitol ? 15.5 : 14);
-          controls.target.set(0, isCapitol ? 1.45 : buildingHeight * 0.45, 0);
+          camera.position.copy(exteriorCameraPosition);
+          controls.target.copy(exteriorTarget);
         } else {
           const overviewHeight = Math.max(4.5, Math.max(tourWidth, tourDepth) * 1.25);
           camera.position.set(tourCenterX + tourWidth * 0.45, tourRoofY + overviewHeight, tourCenterZ + tourDepth * 0.62);
@@ -963,6 +1072,8 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
       cancelAnimationFrame(animationId);
       observer.disconnect();
       controls.dispose();
+      environmentTexture.dispose();
+      pmrem.dispose();
       renderer.dispose();
       renderer.domElement.remove();
       scene.traverse((object) => {
@@ -991,8 +1102,8 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
   const annualLoadKwh = annualElectricityKwh(facility);
   const demandOffset = annualLoadKwh ? impact.annualOffsetKwh / annualLoadKwh * 100 : 0;
   const pvYield = impact.activePvCapacity ? impact.annualPvKwh / impact.activePvCapacity : 0;
-  const viewLabel = viewMode === "exterior" ? "Exterior model" : "Satellite-referenced rooftop + proposed PV";
-  return <div className="facility-model" ref={mountRef} aria-label={`Rotatable 3D model of ${facility.name}`}>
+  const viewLabel = viewMode === "exterior" ? "Source-referenced exterior" : "Satellite-referenced rooftop + proposed PV";
+  return <div className="facility-model" ref={mountRef} aria-label={`Interactive source-referenced 3D model of ${facility.name}`}>
     {fallback && viewMode !== "exterior" && <div className={`rooftop-fallback rooftop-${viewMode}`} role="img" aria-label={viewLabel}>
       <div className="fallback-roof">
         <span>ROOFTOP PV</span>
@@ -1016,7 +1127,7 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
         </div>}
     </div>}
     <span className="model-hint">Drag to look around · scroll to move</span>
-    <span className="model-architecture">{facility.id === "DGS-738" ? "Satellite + HABS roof reference" : `Satellite-referenced · ${selectedProfile.label}`}</span>
+    <span className="model-architecture">{facility.id === "DGS-738" ? "Satellite + HABS source model" : `Source-referenced 3D · ${selectedProfile.label}`}</span>
     <div className="model-tour" role="group" aria-label="Explore the rooftop digital twin">
       <button type="button" className={viewMode === "exterior" ? "is-active" : ""} aria-pressed={viewMode === "exterior"} onClick={() => selectView("exterior")}>Exterior</button>
       <button type="button" className={viewMode === "rooftop" ? "is-active" : ""} aria-pressed={viewMode === "rooftop"} onClick={() => selectView("rooftop")}>Rooftop</button>
@@ -1246,8 +1357,14 @@ export default function Home() {
 
   return <main className="app-shell">
     <header className="topbar">
-      <div><p className="eyebrow">Commonwealth Facility Energy Twin</p>
-        <h1>State Facility Portfolio</h1><p className="subtitle">Compare building-specific exterior and rooftop digital twins, inspect sloped PV layouts, and evaluate a full year of energy, cost and emissions outcomes.</p></div>
+      <div className="header-copy">
+        <a className="commonwealth-brand" href="https://www.virginia.gov/" target="_blank" rel="noreferrer" aria-label="Visit the official Commonwealth of Virginia website">
+          <span className="commonwealth-logo-tile"><img src="https://www.virginia.gov/media/developer/assets/img/bbar_logos_blue.png" alt="" loading="eager" decoding="async" referrerPolicy="no-referrer" /></span>
+          <span><strong>Commonwealth of Virginia</strong><small>Facility Energy Twin</small></span>
+        </a>
+        <p className="eyebrow">Source-referenced public-facility digital twin</p>
+        <h1>State Facility Portfolio at Richmond</h1><p className="subtitle">Compare higher-fidelity exterior and rooftop digital twins, inspect sloped PV layouts, and evaluate a full year of energy, cost and emissions outcomes.</p>
+      </div>
     </header>
 
     <section className="metrics" aria-label="Portfolio energy summary">
