@@ -827,28 +827,41 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
           panelModules.push(pvModule);
       };
       if (facility.id === "DGS-702") {
-        // Keep the conceptual array compact instead of scattering modules over
-        // all three roof zones. Twelve modules form a tight 3 × 4 bank on the
-        // broad east wing; each coverage step adds one complete row.
-        const arrayField = customRoofFields[2] ?? customRoofFields[0];
-        const pvColumns = 3;
-        const pvRows = 4;
-        const arrayWidth = arrayField.width * 0.9;
-        const arrayDepth = arrayField.depth * 0.88;
-        const panelWidth = arrayWidth / pvColumns * 0.72;
-        const panelDepth = arrayDepth / pvRows * 0.7;
-        for (let row = 0; row < pvRows; row += 1) {
-          for (let column = 0; column < pvColumns; column += 1) {
-            const panelX = arrayField.x - arrayWidth * 0.5 + arrayWidth * (column + 0.5) / pvColumns;
-            const panelZ = arrayField.z - arrayDepth * 0.5 + arrayDepth * (row + 0.5) / pvRows;
-            addPvModule(panelX, panelZ, arrayField.y, panelWidth, panelDepth, 0, true);
-          }
+        // Fill all three connected Washington Building roof zones at 100%.
+        // Modules are added round-robin across the center bar and both wings,
+        // so every coverage step remains balanced rather than filling one side
+        // before the others.
+        const fieldLayouts = customRoofFields.map((arrayField, fieldIndex) => {
+          const pvColumns = fieldIndex === 0 ? 5 : 2;
+          const pvRows = fieldIndex === 0 ? 2 : 5;
+          const arrayWidth = arrayField.width * 0.95;
+          const arrayDepth = arrayField.depth * 0.93;
+          const panelWidth = arrayWidth / pvColumns * 0.88;
+          const panelDepth = arrayDepth / pvRows * 0.84;
+          return Array.from({ length: pvRows * pvColumns }, (_, slot) => {
+            const row = Math.floor(slot / pvColumns);
+            const column = slot % pvColumns;
+            return {
+              x: arrayField.x - arrayWidth * 0.5 + arrayWidth * (column + 0.5) / pvColumns,
+              z: arrayField.z - arrayDepth * 0.5 + arrayDepth * (row + 0.5) / pvRows,
+              y: arrayField.y,
+              width: panelWidth,
+              depth: panelDepth,
+            };
+          });
+        });
+        const longestField = Math.max(...fieldLayouts.map((layout) => layout.length));
+        for (let slot = 0; slot < longestField; slot += 1) {
+          fieldLayouts.forEach((layout) => {
+            const panel = layout[slot];
+            if (panel) addPvModule(panel.x, panel.z, panel.y, panel.width, panel.depth, 0, true);
+          });
         }
       } else {
         const pvColumns = 4;
         const pvRows = 4;
-        const panelWidth = Math.max(0.16, tourWidth / pvColumns * 0.78);
-        const panelDepth = Math.max(0.24, tourDepth / pvRows * 0.72);
+        const panelWidth = Math.max(0.16, tourWidth / pvColumns * 0.9);
+        const panelDepth = Math.max(0.24, tourDepth / pvRows * 0.84);
         for (let row = 0; row < pvRows; row += 1) {
           for (let column = 0; column < pvColumns; column += 1) {
             const panelX = tourCenterX - tourWidth * 0.375 + column * tourWidth * 0.25;
@@ -958,7 +971,7 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
     };
   }, [facility]);
 
-  const fallbackPanelCount = facility.id === "DGS-702" ? 12 : 16;
+  const fallbackPanelCount = facility.id === "DGS-702" ? 30 : 16;
   const fallbackActivePanels = Math.ceil(fallbackPanelCount * coverage / 100);
   const fallbackWallColor = `#${selectedProfile.wall.toString(16).padStart(6, "0")}`;
   const annualLoadKwh = annualElectricityKwh(facility);
@@ -969,7 +982,7 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
     {fallback && viewMode !== "exterior" && <div className={`rooftop-fallback rooftop-${viewMode}`} role="img" aria-label={viewLabel}>
       <div className="fallback-roof">
         <span>ROOFTOP PV</span>
-        <div className={facility.id === "DGS-702" ? "fallback-pv-field is-compact" : "fallback-pv-field"}>{Array.from({ length: fallbackPanelCount }, (_, index) => <i key={index} className={index < fallbackActivePanels ? "is-active" : ""} />)}</div>
+        <div className="fallback-pv-field">{Array.from({ length: fallbackPanelCount }, (_, index) => <i key={index} className={index < fallbackActivePanels ? "is-active" : ""} />)}</div>
         <strong>{viewLabel}</strong>
       </div>
     </div>}
@@ -1008,7 +1021,7 @@ function FacilityModel({ facility, hour, coverage, dayOfYear, energy, impact }: 
         <div><span>Cost avoided</span><strong>{compactCurrency(impact.avoidedCost)} <small>/yr</small></strong></div>
         <div><span>PV yield</span><strong>{compactNumber(pvYield)} <small>kWh/kW</small></strong></div>
       </div>
-      <p>{coverage}% of usable roof · {formatNumber(Math.round(impact.selectedRoofArea))} sq. ft. · {facility.id === "DGS-702" ? "compact grouped array" : "sloped planning array"}</p>
+      <p>{coverage}% of usable roof · {formatNumber(Math.round(impact.selectedRoofArea))} sq. ft. · {facility.id === "DGS-702" ? "balanced three-zone array" : "sloped planning array"}</p>
     </div>
   </div>;
 }
